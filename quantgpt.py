@@ -1,5 +1,5 @@
 # quantgpt.py
-# QuantGPT - AI量化交易聊天助手
+# QuantGPT - AI-Powered Trading Assistant
 
 import streamlit as st
 import pandas as pd
@@ -13,17 +13,17 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ===================================
-# 页面配置
+# Page Configuration
 # ===================================
 st.set_page_config(
-    page_title="QuantGPT - AI量化交易助手",
+    page_title="QuantGPT - AI Trading Assistant",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ===================================
-# 样式设置
+# Custom CSS
 # ===================================
 st.markdown("""
 <style>
@@ -46,30 +46,30 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ===================================
-# 量化分析类
+# QuantGPT Assistant Class
 # ===================================
 
 class QuantGPTAssistant:
-    """QuantGPT AI助手"""
+    """QuantGPT AI Assistant"""
     
     def __init__(self):
         self.initialize_session_state()
     
     def initialize_session_state(self):
-        """初始化会话状态"""
+        """Initialize session state"""
         if 'messages' not in st.session_state:
             st.session_state.messages = [
-                {"role": "assistant", "content": """👋 你好！我是QuantGPT，你的AI量化交易助手！
+                {"role": "assistant", "content": """👋 Hello! I'm QuantGPT, your AI-powered trading assistant!
 
-我可以帮你：
-- 📊 分析股票（例如："分析AAPL"）
-- 📈 查看技术指标（例如："TSLA的RSI是多少？"）
-- 💡 提供投资建议（例如："我应该买入NVDA吗？"）
-- 📉 比较股票（例如："比较AAPL和GOOGL"）
-- 🎯 策略回测（例如："测试MSFT的均线策略"）
-- 💰 计算收益（例如："如果我投资1万美元到TSLA会怎样？"）
+I can help you with:
+- 📊 **Stock Analysis** (e.g., "analyze AAPL")
+- 📈 **Technical Indicators** (e.g., "what's TSLA's RSI?")
+- 💡 **Investment Advice** (e.g., "should I buy NVDA?")
+- 📉 **Stock Comparison** (e.g., "compare AAPL and GOOGL")
+- 🎯 **Strategy Backtesting** (e.g., "test moving average strategy for MSFT")
+- 💰 **Return Calculation** (e.g., "if I invest $10,000 in TSLA?")
 
-请随便问我任何关于股票和投资的问题！"""}
+Feel free to ask me anything about stocks and investing!"""}
             ]
         
         if 'analyzing' not in st.session_state:
@@ -77,18 +77,18 @@ class QuantGPTAssistant:
     
     @st.cache_data(ttl=3600)
     def get_stock_data(_self, symbol, period="1y"):
-        """获取股票数据"""
+        """Fetch stock data"""
         try:
             ticker = yf.Ticker(symbol)
             data = ticker.history(period=period)
             info = ticker.info
             return data, info
         except:
-            # 返回模拟数据
+            # Return mock data as fallback
             return _self.generate_mock_data(symbol, period)
     
     def generate_mock_data(self, symbol, period="1y"):
-        """生成模拟数据"""
+        """Generate mock data for demonstration"""
         periods_days = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730}
         days = periods_days.get(period, 365)
         
@@ -116,7 +116,7 @@ class QuantGPTAssistant:
         return data, info
     
     def calculate_indicators(self, data):
-        """计算技术指标"""
+        """Calculate technical indicators"""
         df = data.copy()
         
         # RSI
@@ -126,7 +126,7 @@ class QuantGPTAssistant:
         rs = gain / (loss + 1e-10)
         df['RSI'] = 100 - (100 / (1 + rs))
         
-        # 移动平均
+        # Moving Averages
         df['SMA_20'] = df['Close'].rolling(20).mean()
         df['SMA_50'] = df['Close'].rolling(50).mean()
         
@@ -138,7 +138,7 @@ class QuantGPTAssistant:
         return df
     
     def analyze_stock(self, symbol):
-        """分析股票"""
+        """Analyze a stock"""
         data, info = self.get_stock_data(symbol)
         data = self.calculate_indicators(data)
         
@@ -150,7 +150,7 @@ class QuantGPTAssistant:
         sma_20 = data['SMA_20'].iloc[-1]
         sma_50 = data['SMA_50'].iloc[-1]
         
-        # 生成建议
+        # Generate recommendation
         score = 50
         if current_price > sma_20 > sma_50:
             score += 20
@@ -160,51 +160,51 @@ class QuantGPTAssistant:
             score += 15
         
         if score >= 70:
-            recommendation = "🟢 **买入**"
-            reason = "技术指标显示强劲的上涨信号"
+            recommendation = "🟢 **BUY**"
+            reason = "Strong bullish signals detected"
         elif score >= 60:
-            recommendation = "🟡 **持有**"
-            reason = "市场表现中性，建议观望"
+            recommendation = "🟡 **HOLD**"
+            reason = "Mixed signals, wait for clearer direction"
         else:
-            recommendation = "🔴 **卖出**"
-            reason = "技术指标显示下跌风险"
+            recommendation = "🔴 **SELL**"
+            reason = "Bearish indicators suggest caution"
         
         analysis = f"""
-### 📊 {symbol} 分析报告
+### 📊 {symbol} Analysis Report
 
-**基本信息：**
-- 当前价格：${current_price:.2f}
-- 今日涨跌：{change:+.2f}%
-- 成交量：{data['Volume'].iloc[-1]:,.0f}
+**Basic Information:**
+- Current Price: ${current_price:.2f}
+- Daily Change: {change:+.2f}%
+- Volume: {data['Volume'].iloc[-1]:,.0f}
 
-**技术指标：**
-- RSI(14)：{rsi:.2f} {'(超卖)' if rsi < 30 else '(超买)' if rsi > 70 else '(中性)'}
-- SMA20：${sma_20:.2f}
-- SMA50：${sma_50:.2f}
-- 趋势：{'上升📈' if current_price > sma_20 > sma_50 else '下降📉' if current_price < sma_20 < sma_50 else '震荡📊'}
+**Technical Indicators:**
+- RSI(14): {rsi:.2f} {'(Oversold)' if rsi < 30 else '(Overbought)' if rsi > 70 else '(Neutral)'}
+- SMA20: ${sma_20:.2f}
+- SMA50: ${sma_50:.2f}
+- Trend: {'Bullish 📈' if current_price > sma_20 > sma_50 else 'Bearish 📉' if current_price < sma_20 < sma_50 else 'Sideways 📊'}
 
-**AI建议：** {recommendation}
-**理由：** {reason}
+**AI Recommendation:** {recommendation}
+**Reasoning:** {reason}
 
-**风险提示：** 投资有风险，请谨慎决策。
+**Risk Warning:** All investments carry risk. Please do your own research.
 """
         return analysis, data
     
     def create_chart(self, symbol, data):
-        """创建股价图表"""
+        """Create price chart"""
         fig = go.Figure()
         
-        # K线图
+        # Candlestick chart
         fig.add_trace(go.Candlestick(
             x=data.index,
             open=data['Open'],
             high=data['High'],
             low=data['Low'],
             close=data['Close'],
-            name='价格'
+            name='Price'
         ))
         
-        # 添加移动平均线
+        # Add moving averages
         if 'SMA_20' in data.columns:
             fig.add_trace(go.Scatter(
                 x=data.index, 
@@ -222,9 +222,9 @@ class QuantGPTAssistant:
             ))
         
         fig.update_layout(
-            title=f'{symbol} 价格走势',
-            yaxis_title='价格 ($)',
-            xaxis_title='日期',
+            title=f'{symbol} Price Chart',
+            yaxis_title='Price ($)',
+            xaxis_title='Date',
             height=400,
             template='plotly_white',
             xaxis_rangeslider_visible=False
@@ -233,53 +233,53 @@ class QuantGPTAssistant:
         return fig
     
     def process_query(self, query):
-        """处理用户查询"""
+        """Process user query"""
         query_lower = query.lower()
         
-        # 提取股票代码
+        # Extract stock symbols
         import re
         stock_symbols = re.findall(r'\b[A-Z]{1,5}\b', query.upper())
         
-        # 分析类查询
-        if any(word in query_lower for word in ['分析', '评估', '看看', 'analyze', 'check']):
+        # Analysis queries
+        if any(word in query_lower for word in ['analyze', 'analysis', 'check', 'look at', 'review']):
             if stock_symbols:
                 symbol = stock_symbols[0]
                 analysis, data = self.analyze_stock(symbol)
                 chart = self.create_chart(symbol, data)
                 return analysis, chart
             else:
-                return "请提供股票代码，例如：'分析AAPL'", None
+                return "Please provide a stock symbol. For example: 'analyze AAPL'", None
         
-        # 价格查询
-        elif any(word in query_lower for word in ['价格', '多少钱', 'price', 'cost']):
+        # Price queries
+        elif any(word in query_lower for word in ['price', 'cost', 'worth', 'trading at']):
             if stock_symbols:
                 symbol = stock_symbols[0]
                 data, _ = self.get_stock_data(symbol, "1mo")
                 price = data['Close'].iloc[-1]
                 change = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
-                return f"**{symbol}** 当前价格：**${price:.2f}** ({change:+.2f}%)", None
+                return f"**{symbol}** is currently trading at **${price:.2f}** ({change:+.2f}%)", None
             else:
-                return "请提供股票代码，例如：'AAPL的价格是多少？'", None
+                return "Please provide a stock symbol. For example: 'What's AAPL's price?'", None
         
-        # 买卖建议
-        elif any(word in query_lower for word in ['买', '卖', 'buy', 'sell', '建议', '推荐']):
+        # Buy/Sell advice
+        elif any(word in query_lower for word in ['buy', 'sell', 'should i', 'recommend', 'suggestion']):
             if stock_symbols:
                 symbol = stock_symbols[0]
                 analysis, data = self.analyze_stock(symbol)
                 return analysis, None
             else:
-                # 推荐热门股票
-                return """### 🔥 今日热门推荐：
+                # Recommend popular stocks
+                return """### 🔥 Today's Top Picks:
 
-1. **NVDA** - AI芯片龙头，技术指标强劲 🟢
-2. **AAPL** - 稳健蓝筹，适合长期持有 🟢
-3. **TSLA** - 电动车领导者，波动较大 🟡
-4. **MSFT** - 云计算巨头，增长稳定 🟢
-5. **GOOGL** - 搜索霸主，AI转型中 🟡
+1. **NVDA** - AI chip leader, strong momentum 🟢
+2. **AAPL** - Stable blue-chip, good for long-term 🟢
+3. **TSLA** - EV leader, high volatility 🟡
+4. **MSFT** - Cloud giant, steady growth 🟢
+5. **GOOGL** - Search dominance, AI transformation 🟡
 
-输入具体股票代码获取详细分析！""", None
+Enter a specific ticker for detailed analysis!""", None
         
-        # RSI查询
+        # RSI queries
         elif 'rsi' in query_lower:
             if stock_symbols:
                 symbol = stock_symbols[0]
@@ -288,32 +288,34 @@ class QuantGPTAssistant:
                 rsi = data['RSI'].iloc[-1]
                 
                 if rsi < 30:
-                    status = "**超卖区域** 🟢 - 可能是买入机会"
+                    status = "**Oversold** 🟢 - Potential buying opportunity"
                 elif rsi > 70:
-                    status = "**超买区域** 🔴 - 可能面临回调"
+                    status = "**Overbought** 🔴 - May face correction"
                 else:
-                    status = "**中性区域** 🟡 - 没有明确信号"
+                    status = "**Neutral** 🟡 - No clear signal"
                 
                 return f"**{symbol}** RSI(14) = **{rsi:.2f}**\n\n{status}", None
         
-        # 比较股票
-        elif any(word in query_lower for word in ['比较', 'compare', 'vs']):
+        # Compare stocks
+        elif any(word in query_lower for word in ['compare', 'versus', 'vs', 'better']):
             if len(stock_symbols) >= 2:
                 results = []
+                returns = []
                 for symbol in stock_symbols[:2]:
                     data, _ = self.get_stock_data(symbol, "1mo")
-                    change = (data['Close'].iloc[-1] - data['Close'].iloc[0]) / data['Close'].iloc[0] * 100
-                    results.append(f"**{symbol}**: 月收益 {change:+.2f}%")
+                    monthly_return = (data['Close'].iloc[-1] - data['Close'].iloc[0]) / data['Close'].iloc[0] * 100
+                    results.append(f"**{symbol}**: Monthly return {monthly_return:+.2f}%")
+                    returns.append(monthly_return)
                 
-                winner = stock_symbols[0] if results[0] > results[1] else stock_symbols[1]
-                return f"### 📊 股票比较\n\n" + "\n".join(results) + f"\n\n🏆 **{winner}** 表现更好！", None
+                winner = stock_symbols[0] if returns[0] > returns[1] else stock_symbols[1]
+                return f"### 📊 Stock Comparison\n\n" + "\n".join(results) + f"\n\n🏆 **{winner}** is performing better!", None
             else:
-                return "请提供两个股票代码进行比较，例如：'比较AAPL和GOOGL'", None
+                return "Please provide two stock symbols to compare. For example: 'compare AAPL and GOOGL'", None
         
-        # 投资计算
-        elif any(word in query_lower for word in ['投资', '收益', 'invest', 'return', '如果']):
+        # Investment calculation
+        elif any(word in query_lower for word in ['invest', 'return', 'profit', 'if i', 'calculate']):
             if stock_symbols and any(char.isdigit() for char in query):
-                # 提取金额
+                # Extract amount
                 amounts = re.findall(r'[\d,]+', query)
                 if amounts:
                     amount = float(amounts[0].replace(',', ''))
@@ -327,74 +329,105 @@ class QuantGPTAssistant:
                     profit = final_value - amount
                     return_rate = (profit / amount) * 100
                     
-                    return f"""### 💰 投资模拟 - {symbol}
+                    return f"""### 💰 Investment Simulation - {symbol}
 
-**初始投资：** ${amount:,.2f}
-**买入价格：** ${start_price:.2f}
-**当前价格：** ${end_price:.2f}
-**持有股数：** {shares:.2f}
+**Initial Investment:** ${amount:,.2f}
+**Entry Price:** ${start_price:.2f}
+**Current Price:** ${end_price:.2f}
+**Shares:** {shares:.2f}
 
-**当前价值：** ${final_value:,.2f}
-**盈亏金额：** ${profit:+,.2f}
-**收益率：** {return_rate:+.2f}%
+**Current Value:** ${final_value:,.2f}
+**Profit/Loss:** ${profit:+,.2f}
+**Return:** {return_rate:+.2f}%
 
-{'🎉 恭喜！投资获利！' if profit > 0 else '😔 暂时亏损，请耐心持有'}""", None
+{'🎉 Congratulations! Your investment is profitable!' if profit > 0 else '😔 Currently at a loss, consider holding for recovery'}""", None
         
-        # 默认回复
+        # Moving average strategy
+        elif any(word in query_lower for word in ['strategy', 'backtest', 'test', 'moving average', 'ma']):
+            if stock_symbols:
+                symbol = stock_symbols[0]
+                data, _ = self.get_stock_data(symbol)
+                data = self.calculate_indicators(data)
+                
+                # Simple MA crossover strategy
+                buy_signals = 0
+                sell_signals = 0
+                
+                for i in range(50, len(data)):
+                    if data['SMA_20'].iloc[i] > data['SMA_50'].iloc[i] and data['SMA_20'].iloc[i-1] <= data['SMA_50'].iloc[i-1]:
+                        buy_signals += 1
+                    elif data['SMA_20'].iloc[i] < data['SMA_50'].iloc[i] and data['SMA_20'].iloc[i-1] >= data['SMA_50'].iloc[i-1]:
+                        sell_signals += 1
+                
+                return f"""### 📈 Moving Average Strategy - {symbol}
+
+**Strategy:** SMA20/SMA50 Crossover
+**Period:** Last 12 months
+
+**Signals Generated:**
+- Buy Signals: {buy_signals}
+- Sell Signals: {sell_signals}
+
+**Current Status:** {'Bullish' if data['SMA_20'].iloc[-1] > data['SMA_50'].iloc[-1] else 'Bearish'}
+
+This is a classic trend-following strategy that works well in trending markets.""", None
+        
+        # Default response
         else:
-            return """我可以帮你：
+            return """I can help you with:
 
-- 📊 **分析股票**：输入"分析AAPL"
-- 💵 **查询价格**：输入"TSLA的价格"
-- 📈 **技术指标**：输入"NVDA的RSI"
-- 🔄 **比较股票**：输入"比较AAPL和GOOGL"
-- 💰 **模拟投资**：输入"投资10000美元到MSFT"
-- 💡 **获取建议**：输入"我应该买什么股票"
+- 📊 **Stock Analysis**: Type "analyze AAPL"
+- 💵 **Price Check**: Type "TSLA price"
+- 📈 **Technical Indicators**: Type "NVDA RSI"
+- 🔄 **Compare Stocks**: Type "compare AAPL and GOOGL"
+- 💰 **Investment Simulation**: Type "invest $10000 in MSFT"
+- 🎯 **Strategy Testing**: Type "test strategy for AAPL"
+- 💡 **Get Recommendations**: Type "what should I buy?"
 
-请问有什么可以帮助你的？""", None
+What would you like to know?""", None
 
 # ===================================
-# 主应用
+# Main Application
 # ===================================
 
 def main():
-    st.title("🤖 QuantGPT - AI量化交易助手")
+    st.title("🤖 QuantGPT - AI Trading Assistant")
     st.markdown("---")
     
-    # 初始化助手
+    # Initialize assistant
     assistant = QuantGPTAssistant()
     
-    # 侧边栏
+    # Sidebar
     with st.sidebar:
-        st.markdown("### 📌 快速操作")
+        st.markdown("### 📌 Quick Actions")
         
-        # 热门股票按钮
-        st.markdown("**热门股票：**")
+        # Popular stocks buttons
+        st.markdown("**Popular Stocks:**")
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🍎 AAPL"):
-                st.session_state.messages.append({"role": "user", "content": "分析AAPL"})
+                st.session_state.messages.append({"role": "user", "content": "analyze AAPL"})
             if st.button("🚗 TSLA"):
-                st.session_state.messages.append({"role": "user", "content": "分析TSLA"})
+                st.session_state.messages.append({"role": "user", "content": "analyze TSLA"})
             if st.button("🖥️ NVDA"):
-                st.session_state.messages.append({"role": "user", "content": "分析NVDA"})
+                st.session_state.messages.append({"role": "user", "content": "analyze NVDA"})
         with col2:
             if st.button("🔍 GOOGL"):
-                st.session_state.messages.append({"role": "user", "content": "分析GOOGL"})
+                st.session_state.messages.append({"role": "user", "content": "analyze GOOGL"})
             if st.button("💻 MSFT"):
-                st.session_state.messages.append({"role": "user", "content": "分析MSFT"})
+                st.session_state.messages.append({"role": "user", "content": "analyze MSFT"})
             if st.button("📱 META"):
-                st.session_state.messages.append({"role": "user", "content": "分析META"})
+                st.session_state.messages.append({"role": "user", "content": "analyze META"})
         
         st.markdown("---")
-        st.markdown("### 💡 示例问题")
+        st.markdown("### 💡 Example Questions")
         example_questions = [
-            "AAPL的价格是多少？",
-            "分析TSLA",
-            "NVDA的RSI是多少？",
-            "比较AAPL和GOOGL",
-            "如果我投资10000美元到MSFT会怎样？",
-            "我应该买什么股票？"
+            "What's AAPL's price?",
+            "analyze TSLA",
+            "What's NVDA's RSI?",
+            "compare AAPL and GOOGL",
+            "if I invest $10000 in MSFT?",
+            "what should I buy today?"
         ]
         
         for question in example_questions:
@@ -402,36 +435,36 @@ def main():
                 st.session_state.messages.append({"role": "user", "content": question})
         
         st.markdown("---")
-        if st.button("🗑️ 清空对话"):
+        if st.button("🗑️ Clear Chat"):
             st.session_state.messages = [st.session_state.messages[0]]
             st.rerun()
     
-    # 显示聊天历史
+    # Display chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            # 如果有图表，显示图表
+            # Display chart if available
             if "chart" in message and message["chart"] is not None:
                 st.plotly_chart(message["chart"], use_container_width=True)
     
-    # 用户输入
-    if prompt := st.chat_input("问我任何关于股票的问题..."):
-        # 添加用户消息
+    # User input
+    if prompt := st.chat_input("Ask me anything about stocks..."):
+        # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         
-        # 生成助手回复
+        # Generate assistant response
         with st.chat_message("assistant"):
-            with st.spinner("思考中..."):
+            with st.spinner("Thinking..."):
                 response, chart = assistant.process_query(prompt)
                 st.markdown(response)
                 
-                # 如果有图表，显示它
+                # Display chart if available
                 if chart is not None:
                     st.plotly_chart(chart, use_container_width=True)
                 
-                # 保存助手消息
+                # Save assistant message
                 message_data = {"role": "assistant", "content": response}
                 if chart is not None:
                     message_data["chart"] = chart
