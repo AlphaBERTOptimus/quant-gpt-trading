@@ -7,334 +7,57 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import ta
 from datetime import datetime, timedelta
+import requests
 import json
-import re
 from sklearn.model_selection import ParameterGrid
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
 from scipy.optimize import minimize
 import warnings
 warnings.filterwarnings('ignore')
 
 # 页面配置
 st.set_page_config(
-    page_title="QuantGPT Contest - AI竞赛量化交易助手",
-    page_icon="🏆",
-    layout="wide"
+    page_title="QuantGPT Pro - AI量化交易平台",
+    page_icon="🚀",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# CSS样式
+# 自定义CSS样式
 st.markdown("""
 <style>
-    .chat-message {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: flex-start;
+    .main-header {
+        font-size: 3rem;
+        font-weight: bold;
+        text-align: center;
+        color: #1f77b4;
+        margin-bottom: 2rem;
     }
-    .chat-message.user {
-        background-color: #2b313e;
-        flex-direction: row-reverse;
-    }
-    .chat-message.bot {
-        background-color: #475063;
-    }
-    .chat-message .avatar {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        margin: 0 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-    }
-    .chat-message .message {
-        flex: 1;
-    }
-    .user .avatar {
-        background-color: #1f77b4;
-    }
-    .bot .avatar {
-        background-color: #f63366;
-    }
-    .contest-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    .metric-card {
+        background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 10px;
-        color: white;
-        margin: 0.5rem 0;
+        border-left: 5px solid #1f77b4;
     }
-    .strategy-rank {
-        background-color: #f0f2f6;
-        padding: 0.8rem;
-        border-radius: 8px;
-        margin: 0.3rem 0;
-        border-left: 4px solid #1f77b4;
-    }
-    .winner-strategy {
-        background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-        border-left: 4px solid #ff6b35;
-        color: #333;
-        font-weight: bold;
+    .strategy-description {
+        background-color: #e8f4fd;
+        padding: 1rem;
+        border-radius: 5px;
+        margin: 1rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ContestTrade核心组件
-class StrategyAgent:
-    """单个策略智能体"""
-    def __init__(self, name, strategy_func, description):
-        self.name = name
-        self.strategy_func = strategy_func
-        self.description = description
-        self.performance_history = []
-        self.current_weight = 1.0
-        self.total_trades = 0
-        self.win_rate = 0.0
-        self.sharpe_ratio = 0.0
-        self.max_drawdown = 0.0
-    
-    def execute_strategy(self, data, params):
-        """执行策略并记录表现"""
-        try:
-            strategy_data, explanation = self.strategy_func(data.copy(), params)
-            return strategy_data, explanation, True
-        except Exception as e:
-            return None, f"策略执行失败: {str(e)}", False
-    
-    def update_performance(self, returns, sharpe, max_dd, win_rate):
-        """更新表现指标"""
-        self.performance_history.append({
-            'timestamp': datetime.now(),
-            'returns': returns,
-            'sharpe': sharpe,
-            'max_drawdown': max_dd,
-            'win_rate': win_rate
-        })
-        self.sharpe_ratio = sharpe
-        self.max_drawdown = max_dd
-        self.win_rate = win_rate
-
-class PerformancePredictor:
-    """策略表现预测器"""
+# 策略类定义
+class StrategyEngine:
     def __init__(self):
-        self.model = RandomForestRegressor(n_estimators=50, random_state=42)
-        self.scaler = StandardScaler()
-        self.is_trained = False
-    
-    def extract_features(self, agent):
-        """提取策略特征"""
-        if len(agent.performance_history) < 3:
-            return np.array([0.5, 0.0, 0.0, 0.0, 0.0])  # 默认特征
-        
-        recent_history = agent.performance_history[-5:]  # 最近5次表现
-        
-        features = []
-        # 最近表现趋势
-        recent_sharpes = [h['sharpe'] for h in recent_history]
-        features.append(np.mean(recent_sharpes))  # 平均夏普比率
-        features.append(np.std(recent_sharpes))   # 夏普比率稳定性
-        
-        # 表现动量
-        if len(recent_sharpes) >= 2:
-            features.append(recent_sharpes[-1] - recent_sharpes[-2])  # 动量
-        else:
-            features.append(0.0)
-        
-        # 其他指标
-        recent_returns = [h['returns'] for h in recent_history]
-        features.append(np.mean(recent_returns))  # 平均收益
-        features.append(agent.win_rate)  # 胜率
-        
-        return np.array(features)
-    
-    def train(self, agents_history):
-        """训练预测模型"""
-        if len(agents_history) < 10:  # 需要足够的历史数据
-            return False
-        
-        X, y = [], []
-        for agent_data in agents_history:
-            features = agent_data['features']
-            next_performance = agent_data['next_performance']
-            X.append(features)
-            y.append(next_performance)
-        
-        X = np.array(X)
-        y = np.array(y)
-        
-        X_scaled = self.scaler.fit_transform(X)
-        self.model.fit(X_scaled, y)
-        self.is_trained = True
-        return True
-    
-    def predict_performance(self, agent):
-        """预测策略未来表现"""
-        if not self.is_trained:
-            # 基于历史平均的简单预测
-            if len(agent.performance_history) > 0:
-                recent_performance = agent.performance_history[-3:]
-                avg_sharpe = np.mean([h['sharpe'] for h in recent_performance])
-                return max(0.1, avg_sharpe)  # 最小权重0.1
-            return 0.5  # 默认预测
-        
-        features = self.extract_features(agent).reshape(1, -1)
-        features_scaled = self.scaler.transform(features)
-        prediction = self.model.predict(features_scaled)[0]
-        return max(0.1, prediction)  # 确保最小权重
-
-class ContestEngine:
-    """竞赛引擎 - ContestTrade核心实现"""
-    def __init__(self):
-        self.agents = {}
-        self.predictor = PerformancePredictor()
-        self.contest_history = []
-        self.current_market_regime = "Normal"
-        
-    def register_agent(self, agent):
-        """注册策略智能体"""
-        self.agents[agent.name] = agent
-    
-    def quantify_performance(self, data_results):
-        """量化阶段：评估所有策略的历史表现"""
-        performance_scores = {}
-        
-        for agent_name, agent in self.agents.items():
-            if agent_name in data_results:
-                backtest_data = data_results[agent_name]['backtest_data']
-                metrics = data_results[agent_name]['metrics']
-                
-                # 提取关键指标
-                try:
-                    sharpe = float(metrics['夏普比率'])
-                    total_return = float(metrics['总收益率'].replace('%', '')) / 100
-                    max_dd = abs(float(metrics['最大回撤'].replace('%', ''))) / 100
-                    win_rate = float(metrics['胜率'].replace('%', '')) / 100
-                    
-                    # 更新智能体表现
-                    agent.update_performance(total_return, sharpe, max_dd, win_rate)
-                    
-                    # 综合得分（可自定义权重）
-                    score = (sharpe * 0.4 + total_return * 0.3 + 
-                           (1 - max_dd) * 0.2 + win_rate * 0.1)
-                    performance_scores[agent_name] = max(0.1, score)
-                    
-                except:
-                    performance_scores[agent_name] = 0.5  # 默认分数
-            else:
-                performance_scores[agent_name] = 0.5
-        
-        return performance_scores
-    
-    def predict_future_performance(self):
-        """预测阶段：预测未来表现"""
-        predictions = {}
-        
-        for agent_name, agent in self.agents.items():
-            predicted_score = self.predictor.predict_performance(agent)
-            predictions[agent_name] = predicted_score
-        
-        return predictions
-    
-    def allocate_resources(self, current_scores, predicted_scores):
-        """分配阶段：基于预测分配权重"""
-        # 结合当前表现和预测表现
-        combined_scores = {}
-        
-        for agent_name in self.agents.keys():
-            current = current_scores.get(agent_name, 0.5)
-            predicted = predicted_scores.get(agent_name, 0.5)
-            
-            # 权重组合：70%历史表现 + 30%预测表现
-            combined_score = current * 0.7 + predicted * 0.3
-            combined_scores[agent_name] = combined_score
-        
-        # 归一化权重
-        total_score = sum(combined_scores.values())
-        if total_score > 0:
-            weights = {name: score/total_score for name, score in combined_scores.items()}
-        else:
-            # 均等权重作为后备
-            n = len(self.agents)
-            weights = {name: 1.0/n for name in self.agents.keys()}
-        
-        return weights, combined_scores
-    
-    def run_contest(self, data_results):
-        """运行完整的竞赛周期"""
-        # 阶段1：量化表现
-        current_scores = self.quantify_performance(data_results)
-        
-        # 阶段2：预测未来
-        predicted_scores = self.predict_future_performance()
-        
-        # 阶段3：分配资源
-        final_weights, combined_scores = self.allocate_resources(current_scores, predicted_scores)
-        
-        # 记录竞赛历史
-        contest_result = {
-            'timestamp': datetime.now(),
-            'current_scores': current_scores,
-            'predicted_scores': predicted_scores,
-            'final_weights': final_weights,
-            'combined_scores': combined_scores
-        }
-        self.contest_history.append(contest_result)
-        
-        return contest_result
-    
-    def get_strategy_rankings(self, contest_result):
-        """获取策略排名"""
-        rankings = []
-        for agent_name, score in contest_result['combined_scores'].items():
-            agent = self.agents[agent_name]
-            rankings.append({
-                'name': agent_name,
-                'score': score,
-                'weight': contest_result['final_weights'][agent_name],
-                'sharpe': agent.sharpe_ratio,
-                'win_rate': agent.win_rate,
-                'description': agent.description
-            })
-        
-        # 按综合得分排序
-        rankings.sort(key=lambda x: x['score'], reverse=True)
-        return rankings
-
-# 增强的策略引擎（集成ContestTrade）
-class EnhancedStrategyEngine:
-    def __init__(self):
-        # 定义所有策略
-        self.strategy_functions = {
+        self.strategies = {
             "趋势跟踪": self.trend_following,
             "均值回归": self.mean_reversion,
             "动量策略": self.momentum_strategy,
+            "配对交易": self.pairs_trading,
             "突破策略": self.breakout_strategy,
-            "网格交易": self.grid_trading,
-            "配对交易": self.pairs_trading
+            "网格交易": self.grid_trading
         }
-        
-        # 创建策略智能体
-        self.agents = {}
-        descriptions = {
-            "趋势跟踪": "双均线策略，捕捉趋势性行情",
-            "均值回归": "布林带策略，利用价格回归特性",
-            "动量策略": "RSI+MACD组合，捕捉动量信号",
-            "突破策略": "通道突破，捕捉爆发性行情",
-            "网格交易": "震荡市场中的网格套利",
-            "配对交易": "统计套利，低风险稳定收益"
-        }
-        
-        for name, func in self.strategy_functions.items():
-            agent = StrategyAgent(name, func, descriptions[name])
-            self.agents[name] = agent
-        
-        # 初始化竞赛引擎
-        self.contest_engine = ContestEngine()
-        for agent in self.agents.values():
-            self.contest_engine.register_agent(agent)
     
     def trend_following(self, data, params):
         """趋势跟踪策略"""
@@ -344,13 +67,14 @@ class EnhancedStrategyEngine:
         data['SMA_short'] = data['Close'].rolling(window=short_window).mean()
         data['SMA_long'] = data['Close'].rolling(window=long_window).mean()
         
+        # 生成信号
         data['Signal'] = 0
         data['Signal'][short_window:] = np.where(
             data['SMA_short'][short_window:] > data['SMA_long'][short_window:], 1, 0
         )
         data['Position'] = data['Signal'].diff()
         
-        return data, f"使用{short_window}日和{long_window}日双均线策略，短期均线上穿长期均线时买入"
+        return data, f"当短期均线({short_window}日)上穿长期均线({long_window}日)时买入，下穿时卖出"
     
     def mean_reversion(self, data, params):
         """均值回归策略"""
@@ -367,25 +91,44 @@ class EnhancedStrategyEngine:
                                 np.where(data['Close'] > data['Upper'], -1, 0))
         data['Position'] = data['Signal'].diff()
         
-        return data, f"布林带均值回归策略，价格跌破下轨买入，涨破上轨卖出"
+        return data, f"当价格跌破下轨({std_dev}倍标准差)时买入，涨破上轨时卖出"
     
     def momentum_strategy(self, data, params):
         """动量策略"""
-        rsi_window = params.get('rsi_window', 14)
-        rsi_threshold = params.get('rsi_threshold', 70)
+        window = params.get('window', 14)
+        threshold = params.get('threshold', 70)
         
-        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=rsi_window).rsi()
+        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=window).rsi()
         data['MACD'] = ta.trend.MACD(data['Close']).macd()
         data['MACD_signal'] = ta.trend.MACD(data['Close']).macd_signal()
         
+        # 组合信号
         data['Signal'] = 0
         data['Signal'] = np.where(
-            (data['RSI'] > rsi_threshold) & (data['MACD'] > data['MACD_signal']), 1,
-            np.where((data['RSI'] < (100-rsi_threshold)) & (data['MACD'] < data['MACD_signal']), -1, 0)
+            (data['RSI'] > threshold) & (data['MACD'] > data['MACD_signal']), 1,
+            np.where((data['RSI'] < (100-threshold)) & (data['MACD'] < data['MACD_signal']), -1, 0)
         )
         data['Position'] = data['Signal'].diff()
         
-        return data, f"RSI({rsi_window})和MACD组合动量策略，RSI超买超卖结合MACD信号"
+        return data, f"基于RSI({window}日)和MACD指标的动量组合策略"
+    
+    def pairs_trading(self, data, params):
+        """配对交易策略（简化版）"""
+        window = params.get('window', 30)
+        
+        # 这里简化为单一资产的配对交易逻辑
+        data['MA'] = data['Close'].rolling(window=window).mean()
+        data['Spread'] = data['Close'] - data['MA']
+        data['Spread_MA'] = data['Spread'].rolling(window=window).mean()
+        data['Spread_STD'] = data['Spread'].rolling(window=window).std()
+        
+        data['Signal'] = np.where(
+            data['Spread'] > data['Spread_MA'] + data['Spread_STD'], -1,
+            np.where(data['Spread'] < data['Spread_MA'] - data['Spread_STD'], 1, 0)
+        )
+        data['Position'] = data['Signal'].diff()
+        
+        return data, f"基于价格与{window}日均值差价的配对交易策略"
     
     def breakout_strategy(self, data, params):
         """突破策略"""
@@ -401,37 +144,141 @@ class EnhancedStrategyEngine:
         )
         data['Position'] = data['Signal'].diff()
         
-        return data, f"唐奇安通道突破策略，突破{window}日最高点买入，跌破最低点卖出"
+        return data, f"突破{window}日最高点买入，跌破{window}日最低点卖出"
     
     def grid_trading(self, data, params):
         """网格交易策略"""
-        grid_size = params.get('grid_size', 0.02)
+        grid_size = params.get('grid_size', 0.02)  # 2%网格
         
-        data['Price_change'] = data['Close'].pct_change().cumsum()
-        data['Grid_level'] = (data['Price_change'] / grid_size).round()
-        data['Signal'] = -data['Grid_level'].diff()
+        data['Price_change'] = data['Close'].pct_change()
+        data['Cumulative_change'] = data['Price_change'].cumsum()
+        
+        # 简化的网格逻辑
+        data['Grid_level'] = (data['Cumulative_change'] / grid_size).round()
+        data['Signal'] = -data['Grid_level'].diff()  # 价格上涨卖出，下跌买入
         data['Position'] = data['Signal'].diff()
         
-        return data, f"网格交易策略，网格间距{grid_size*100:.1f}%，价格上涨卖出，下跌买入"
-    
-    def pairs_trading(self, data, params):
-        """配对交易策略"""
-        window = params.get('window', 30)
-        
-        data['MA'] = data['Close'].rolling(window=window).mean()
-        data['Spread'] = data['Close'] - data['MA']
-        data['Spread_MA'] = data['Spread'].rolling(window=window).mean()
-        data['Spread_STD'] = data['Spread'].rolling(window=window).std()
-        
-        data['Signal'] = np.where(
-            data['Spread'] > data['Spread_MA'] + data['Spread_STD'], -1,
-            np.where(data['Spread'] < data['Spread_MA'] - data['Spread_STD'], 1, 0)
-        )
-        data['Position'] = data['Signal'].diff()
-        
-        return data, f"统计套利策略，基于{window}日价差均值回归"
+        return data, f"基于{grid_size*100:.1f}%网格间距的网格交易策略"
 
-# 回测引擎（保持原有功能）
+# 风险管理模块
+class RiskManager:
+    @staticmethod
+    def add_stop_loss(data, stop_loss_pct=0.05):
+        """添加止损"""
+        data['Stop_Loss'] = np.nan
+        data['Stop_Loss_Signal'] = 0
+        
+        entry_price = None
+        position = 0
+        
+        for i in range(len(data)):
+            if data['Position'].iloc[i] == 1:  # 买入信号
+                entry_price = data['Close'].iloc[i]
+                position = 1
+            elif data['Position'].iloc[i] == -1:  # 卖出信号
+                entry_price = None
+                position = 0
+            
+            if position == 1 and entry_price:
+                stop_price = entry_price * (1 - stop_loss_pct)
+                data.iloc[i, data.columns.get_loc('Stop_Loss')] = stop_price
+                
+                if data['Close'].iloc[i] < stop_price:
+                    data.iloc[i, data.columns.get_loc('Stop_Loss_Signal')] = -1
+                    position = 0
+                    entry_price = None
+        
+        return data
+    
+    @staticmethod
+    def calculate_position_size(data, risk_per_trade=0.02, account_size=100000):
+        """计算仓位大小"""
+        data['Position_Size'] = account_size * risk_per_trade / data['Close']
+        return data
+    
+    @staticmethod
+    def calculate_var(returns, confidence=0.05):
+        """计算VaR"""
+        return np.percentile(returns, confidence * 100)
+
+# 技术指标库
+class TechnicalIndicators:
+    @staticmethod
+    def add_all_indicators(data):
+        """添加所有技术指标"""
+        # 趋势指标
+        data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
+        data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
+        data['MACD'] = ta.trend.MACD(data['Close']).macd()
+        data['MACD_signal'] = ta.trend.MACD(data['Close']).macd_signal()
+        data['MACD_hist'] = ta.trend.MACD(data['Close']).macd_diff()
+        
+        # 动量指标
+        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
+        data['Stoch'] = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close']).stoch()
+        data['Williams_R'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
+        
+        # 波动率指标
+        data['BB_upper'] = ta.volatility.BollingerBands(data['Close']).bollinger_hband()
+        data['BB_middle'] = ta.volatility.BollingerBands(data['Close']).bollinger_mavg()
+        data['BB_lower'] = ta.volatility.BollingerBands(data['Close']).bollinger_lband()
+        data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close']).average_true_range()
+        
+        # 成交量指标
+        if 'Volume' in data.columns:
+            data['OBV'] = ta.volume.OnBalanceVolumeIndicator(data['Close'], data['Volume']).on_balance_volume()
+            data['Volume_SMA'] = ta.volume.VolumeSMAIndicator(data['Close'], data['Volume']).volume_sma()
+        
+        return data
+
+# 数据获取模块
+class DataManager:
+    @staticmethod
+    def get_yahoo_data(symbol, period="2y"):
+        """获取Yahoo Finance数据"""
+        try:
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(period=period)
+            return data
+        except Exception as e:
+            st.error(f"获取数据失败: {e}")
+            return None
+    
+    @staticmethod
+    def get_alpha_vantage_data(symbol, api_key):
+        """获取Alpha Vantage数据"""
+        try:
+            url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}&outputsize=full"
+            response = requests.get(url)
+            data = response.json()
+            
+            if "Time Series (Daily)" in data:
+                df = pd.DataFrame(data["Time Series (Daily)"]).T
+                df.index = pd.to_datetime(df.index)
+                df = df.astype(float)
+                df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+                return df.sort_index()
+            else:
+                st.error("Alpha Vantage API返回错误")
+                return None
+        except Exception as e:
+            st.error(f"Alpha Vantage数据获取失败: {e}")
+            return None
+    
+    @staticmethod
+    def get_news_sentiment(symbol):
+        """获取新闻情感数据（模拟）"""
+        # 这里是模拟数据，实际应用中可以接入真实的新闻API
+        dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
+        sentiment_scores = np.random.normal(0, 0.3, 30)  # 模拟情感分数
+        
+        return pd.DataFrame({
+            'Date': dates,
+            'Sentiment': sentiment_scores,
+            'News_Count': np.random.randint(5, 50, 30)
+        })
+
+# 回测引擎
 class BacktestEngine:
     @staticmethod
     def run_backtest(data, initial_capital=100000, commission=0.001):
@@ -439,10 +286,15 @@ class BacktestEngine:
         data = data.copy()
         data['Returns'] = data['Close'].pct_change()
         data['Strategy_Returns'] = data['Signal'].shift(1) * data['Returns']
+        
+        # 考虑手续费
         data['Strategy_Returns'] = data['Strategy_Returns'] - (np.abs(data['Position']) * commission)
         
+        # 计算累计收益
         data['Cumulative_Returns'] = (1 + data['Returns']).cumprod()
         data['Strategy_Cumulative'] = (1 + data['Strategy_Returns']).cumprod()
+        
+        # 计算最终资产
         data['Portfolio_Value'] = initial_capital * data['Strategy_Cumulative']
         
         return data
@@ -452,424 +304,806 @@ class BacktestEngine:
         """计算回测指标"""
         strategy_returns = data['Strategy_Returns'].dropna()
         
-        if len(strategy_returns) == 0:
-            return {"错误": "无有效交易数据"}
-        
+        # 基本指标
         total_return = data['Strategy_Cumulative'].iloc[-1] - 1
         annual_return = (1 + total_return) ** (252 / len(strategy_returns)) - 1
         volatility = strategy_returns.std() * np.sqrt(252)
         sharpe_ratio = annual_return / volatility if volatility != 0 else 0
         
+        # 最大回撤
         cumulative = data['Strategy_Cumulative']
         running_max = cumulative.expanding().max()
         drawdown = (cumulative - running_max) / running_max
         max_drawdown = drawdown.min()
         
+        # 胜率
         winning_trades = len(strategy_returns[strategy_returns > 0])
         total_trades = len(strategy_returns[strategy_returns != 0])
         win_rate = winning_trades / total_trades if total_trades > 0 else 0
         
+        # VaR
+        var_95 = RiskManager.calculate_var(strategy_returns, 0.05)
+        
         return {
             "总收益率": f"{total_return:.2%}",
             "年化收益率": f"{annual_return:.2%}",
+            "年化波动率": f"{volatility:.2%}",
             "夏普比率": f"{sharpe_ratio:.2f}",
             "最大回撤": f"{max_drawdown:.2%}",
             "胜率": f"{win_rate:.2%}",
+            "VaR(95%)": f"{var_95:.2%}",
             "交易次数": total_trades
         }
 
-# AI对话处理器（集成竞赛功能）
-class QuantGPTContestProcessor:
-    def __init__(self):
-        self.strategy_engine = EnhancedStrategyEngine()
-        self.backtest_engine = BacktestEngine()
+# 参数优化模块
+class ParameterOptimizer:
+    @staticmethod
+    def grid_search(data, strategy_func, param_grid, metric='sharpe_ratio'):
+        """网格搜索优化"""
+        best_params = None
+        best_score = -np.inf
+        results = []
         
-    def parse_user_input(self, user_input):
-        """解析用户输入"""
-        user_input = user_input.lower()
-        
-        # 检查是否是竞赛模式
-        contest_keywords = ["竞赛", "contest", "比赛", "对比", "哪个更好", "最优", "排名"]
-        is_contest_mode = any(keyword in user_input for keyword in contest_keywords)
-        
-        # 提取股票代码
-        stock_pattern = r'\b[A-Z]{1,5}\b'
-        stocks = re.findall(stock_pattern, user_input.upper())
-        
-        return {
-            'stocks': stocks,
-            'is_contest_mode': is_contest_mode,
-            'original_input': user_input
-        }
-    
-    def run_strategy_contest(self, stock):
-        """运行策略竞赛"""
-        try:
-            # 获取数据
-            data = yf.Ticker(stock).history(period="2y")
-            if data.empty:
-                return None, f"无法获取 {stock} 的数据"
-            
-            # 添加技术指标
-            data = self.add_technical_indicators(data)
-            
-            # 为所有策略运行回测
-            results = {}
-            for agent_name, agent in self.strategy_engine.agents.items():
-                try:
-                    # 获取默认参数
-                    params = self.get_default_params(agent_name)
+        for params in ParameterGrid(param_grid):
+            try:
+                # 运行策略
+                test_data, _ = strategy_func(data.copy(), params)
+                test_data = BacktestEngine.run_backtest(test_data)
+                
+                # 计算目标指标
+                strategy_returns = test_data['Strategy_Returns'].dropna()
+                if len(strategy_returns) > 0:
+                    if metric == 'sharpe_ratio':
+                        annual_return = strategy_returns.mean() * 252
+                        volatility = strategy_returns.std() * np.sqrt(252)
+                        score = annual_return / volatility if volatility != 0 else 0
+                    elif metric == 'total_return':
+                        score = test_data['Strategy_Cumulative'].iloc[-1] - 1
+                    else:
+                        score = 0
                     
-                    # 运行策略
-                    strategy_data, description = agent.execute_strategy(data, params)[:2]
+                    results.append({
+                        'params': params,
+                        'score': score
+                    })
                     
-                    # 运行回测
-                    backtest_data = self.backtest_engine.run_backtest(strategy_data)
-                    
-                    # 计算指标
-                    metrics = self.backtest_engine.calculate_metrics(backtest_data)
-                    
-                    results[agent_name] = {
-                        'backtest_data': backtest_data,
-                        'metrics': metrics,
-                        'description': description,
-                        'params': params
-                    }
-                    
-                except Exception as e:
-                    results[agent_name] = {
-                        'error': str(e)
-                    }
-            
-            # 运行竞赛
-            contest_result = self.strategy_engine.contest_engine.run_contest(results)
-            
-            return results, contest_result
-            
-        except Exception as e:
-            return None, f"竞赛运行失败：{str(e)}"
-    
-    def add_technical_indicators(self, data):
-        """添加技术指标"""
-        # 趋势指标
-        data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
-        data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
+                    if score > best_score:
+                        best_score = score
+                        best_params = params
+            except:
+                continue
         
-        # 动量指标
-        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
-        data['MACD'] = ta.trend.MACD(data['Close']).macd()
-        data['MACD_signal'] = ta.trend.MACD(data['Close']).macd_signal()
-        
-        # 波动率指标
-        data['BB_upper'] = ta.volatility.BollingerBands(data['Close']).bollinger_hband()
-        data['BB_lower'] = ta.volatility.BollingerBands(data['Close']).bollinger_lband()
-        data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close']).average_true_range()
-        
-        return data
-    
-    def get_default_params(self, strategy):
-        """获取策略默认参数"""
-        defaults = {
-            "趋势跟踪": {'short_window': 20, 'long_window': 50},
-            "均值回归": {'window': 20, 'std_dev': 2.0},
-            "动量策略": {'rsi_window': 14, 'rsi_threshold': 70},
-            "突破策略": {'window': 20},
-            "网格交易": {'grid_size': 0.02},
-            "配对交易": {'window': 30}
-        }
-        return defaults.get(strategy, {})
-    
-    def generate_contest_response(self, stock, results, contest_result):
-        """生成竞赛结果响应"""
-        if results is None:
-            return f"❌ {contest_result}"
-        
-        # 获取策略排名
-        rankings = self.strategy_engine.contest_engine.get_strategy_rankings(contest_result)
-        
-        response = f"## 🏆 {stock} 策略竞赛结果\n\n"
-        response += "**竞赛机制：** 基于ContestTrade框架，通过"量化-预测-分配"三阶段评估\n\n"
-        response += "### 📊 策略排名 (按综合得分)\n\n"
-        
-        for i, ranking in enumerate(rankings):
-            medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"{i+1}."
-            response += f"{medal} **{ranking['name']}** (权重: {ranking['weight']:.1%})\n"
-            response += f"   • 综合得分: {ranking['score']:.3f}\n"
-            response += f"   • 夏普比率: {ranking['sharpe']:.2f}\n"
-            response += f"   • 胜率: {ranking['win_rate']:.1%}\n"
-            response += f"   • 策略说明: {ranking['description']}\n\n"
-        
-        # 推荐组合
-        winner = rankings[0]
-        response += "### 🎯 AI推荐\n"
-        response += f"**冠军策略：** {winner['name']}\n"
-        response += f"**推荐理由：** 综合得分最高({winner['score']:.3f})，建议分配{winner['weight']:.1%}的资金权重\n\n"
-        
-        # 市场适应性分析
-        top3_strategies = [r['name'] for r in rankings[:3]]
-        response += "### 🧠 智能洞察\n"
-        response += f"**当前市场特征：** 前三名策略为 {', '.join(top3_strategies)}\n"
-        response += f"**建议操作：** 采用动态权重分配，重点关注{winner['name']}策略信号\n"
-        
-        return response
-
-# 聊天消息显示函数
-def display_message(message, is_user=False):
-    """显示聊天消息"""
-    message_class = "user" if is_user else "bot"
-    avatar = "👤" if is_user else "🤖"
-    
-    st.markdown(f"""
-    <div class="chat-message {message_class}">
-        <div class="avatar">{avatar}</div>
-        <div class="message">{message}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# 竞赛结果可视化
-def show_contest_chart(stock, results, contest_result):
-    """显示竞赛结果图表"""
-    if not results:
-        st.error("没有竞赛数据可显示")
-        return
-    
-    # 获取排名
-    rankings = st.session_state.processor.strategy_engine.contest_engine.get_strategy_rankings(contest_result)
-    
-    # 创建权重分布饼图
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        weights_df = pd.DataFrame(rankings)
-        fig_pie = px.pie(weights_df, values='weight', names='name', 
-                        title=f'{stock} 策略权重分配',
-                        color_discrete_sequence=px.colors.qualitative.Set3)
-        st.plotly_chart(fig_pie, use_container_width=True)
-    
-    with col2:
-        # 策略表现对比
-        scores_df = weights_df.copy()
-        fig_bar = px.bar(scores_df, x='name', y='score', 
-                        title='策略综合得分对比',
-                        color='score',
-                        color_continuous_scale='viridis')
-        fig_bar.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig_bar, use_container_width=True)
-    
-    # 显示冠军策略的详细图表
-    winner_name = rankings[0]['name']
-    if winner_name in results and 'backtest_data' in results[winner_name]:
-        st.subheader(f"🏆 冠军策略详细分析: {winner_name}")
-        
-        winner_data = results[winner_name]['backtest_data']
-        
-        # 创建详细的策略分析图表
-        fig = make_subplots(
-            rows=3, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.05,
-            subplot_titles=(f'{stock} - {winner_name} 价格走势与信号', '策略收益对比', '权重分配历史'),
-            row_heights=[0.5, 0.3, 0.2]
-        )
-        
-        # 价格和信号
-        fig.add_trace(
-            go.Scatter(x=winner_data.index, y=winner_data['Close'], 
-                      name='收盘价', line=dict(color='blue')),
-            row=1, col=1
-        )
-        
-        # 买入信号
-        buy_signals = winner_data[winner_data['Position'] == 1]
-        if not buy_signals.empty:
-            fig.add_trace(
-                go.Scatter(x=buy_signals.index, y=buy_signals['Close'],
-                          mode='markers', name='买入信号', 
-                          marker=dict(color='green', size=8, symbol='triangle-up')),
-                row=1, col=1
-            )
-        
-        # 卖出信号
-        sell_signals = winner_data[winner_data['Position'] == -1]
-        if not sell_signals.empty:
-            fig.add_trace(
-                go.Scatter(x=sell_signals.index, y=sell_signals['Close'],
-                          mode='markers', name='卖出信号',
-                          marker=dict(color='red', size=8, symbol='triangle-down')),
-                row=1, col=1
-            )
-        
-        # 策略收益对比
-        fig.add_trace(
-            go.Scatter(x=winner_data.index, y=(winner_data['Cumulative_Returns']-1)*100,
-                      name='买入持有收益(%)', line=dict(color='gray')),
-            row=2, col=1
-        )
-        
-        fig.add_trace(
-            go.Scatter(x=winner_data.index, y=(winner_data['Strategy_Cumulative']-1)*100,
-                      name=f'{winner_name}策略收益(%)', line=dict(color='gold', width=3)),
-            row=2, col=1
-        )
-        
-        # 权重历史（模拟数据）
-        weight_history = [rankings[0]['weight']] * len(winner_data)
-        fig.add_trace(
-            go.Scatter(x=winner_data.index, y=weight_history,
-                      name='策略权重', line=dict(color='purple')),
-            row=3, col=1
-        )
-        
-        fig.update_layout(height=800, showlegend=True, title=f"🏆 {winner_name} 冠军策略完整分析")
-        st.plotly_chart(fig, use_container_width=True)
+        return best_params, best_score, results
 
 # 主应用
 def main():
-    st.title("🏆 QuantGPT Contest - AI竞赛量化交易助手")
-    st.markdown("**基于ContestTrade框架的多策略智能竞赛平台**")
-    st.markdown("---")
+    # 标题
+    st.markdown('<h1 class="main-header">🚀 QuantGPT Pro - AI量化交易平台</h1>', unsafe_allow_html=True)
     
-    # 初始化会话状态
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "assistant", "content": """🏆 欢迎使用QuantGPT Contest！我是您的AI竞赛量化交易助手。
-
-**新功能亮点：**
-🔥 **策略竞赛模式** - 基于ContestTrade框架
-🔥 **智能权重分配** - 动态评估策略表现
-🔥 **表现预测** - AI预测策略未来表现
-
-**可用功能：**
-• **单策略分析：** "分析AAPL的趋势策略"
-• **策略竞赛：** "AAPL策略竞赛" 或 "哪个策略最适合TSLA"
-• **对比分析：** "比较GOOGL的所有策略表现"
-
-**竞赛机制说明：**
-1. **量化阶段** - 评估所有策略的历史表现
-2. **预测阶段** - AI预测各策略未来表现
-3. **分配阶段** - 智能分配资金权重
-
-请告诉我您想分析什么？例如：
-'AAPL策略竞赛'
-'比较TSLA的所有策略'
-'MSFT哪个策略最好'"""}
-        ]
+    # 侧边栏
+    st.sidebar.title("📊 策略配置")
     
-    if "processor" not in st.session_state:
-        st.session_state.processor = QuantGPTContestProcessor()
+    # 选择数据源
+    data_source = st.sidebar.selectbox(
+        "选择数据源",
+        ["Yahoo Finance", "Alpha Vantage"]
+    )
     
-    # 显示聊天历史
-    for message in st.session_state.messages:
-        display_message(message["content"], message["role"] == "user")
+    # 股票代码输入
+    symbol = st.sidebar.text_input("股票代码", value="AAPL").upper()
     
-    # 用户输入
-    user_input = st.chat_input("请输入您的量化交易问题...")
+    # Alpha Vantage API Key（如果选择）
+    if data_source == "Alpha Vantage":
+        api_key = st.sidebar.text_input("Alpha Vantage API Key", type="password")
     
-    if user_input:
-        # 添加用户消息
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        display_message(user_input, True)
-        
-        # 处理用户输入
-        with st.spinner("🤖 正在运行策略竞赛..."):
-            parsed_input = st.session_state.processor.parse_user_input(user_input)
-            
-            if not parsed_input['stocks']:
-                response = "🤖 请告诉我您想分析的股票代码，例如：'AAPL策略竞赛' 或 'TSLA哪个策略最好？'"
+    # 时间范围
+    period = st.sidebar.selectbox(
+        "数据时间范围",
+        ["1y", "2y", "5y", "max"]
+    )
+    
+    # 策略选择
+    strategy_engine = StrategyEngine()
+    selected_strategy = st.sidebar.selectbox(
+        "选择策略类型",
+        list(strategy_engine.strategies.keys())
+    )
+    
+    # 策略参数设置
+    st.sidebar.subheader("策略参数")
+    params = {}
+    
+    if selected_strategy == "趋势跟踪":
+        params['short_window'] = st.sidebar.slider("短期窗口", 5, 50, 20)
+        params['long_window'] = st.sidebar.slider("长期窗口", 20, 200, 50)
+    elif selected_strategy == "均值回归":
+        params['window'] = st.sidebar.slider("移动窗口", 10, 50, 20)
+        params['std_dev'] = st.sidebar.slider("标准差倍数", 1.0, 3.0, 2.0, 0.1)
+    elif selected_strategy == "动量策略":
+        params['window'] = st.sidebar.slider("RSI窗口", 5, 30, 14)
+        params['threshold'] = st.sidebar.slider("RSI阈值", 60, 80, 70)
+    elif selected_strategy == "配对交易":
+        params['window'] = st.sidebar.slider("统计窗口", 20, 60, 30)
+    elif selected_strategy == "突破策略":
+        params['window'] = st.sidebar.slider("突破窗口", 10, 50, 20)
+    elif selected_strategy == "网格交易":
+        params['grid_size'] = st.sidebar.slider("网格大小(%)", 0.5, 5.0, 2.0, 0.1) / 100
+    
+    # 风险管理参数
+    st.sidebar.subheader("风险管理")
+    use_stop_loss = st.sidebar.checkbox("启用止损")
+    if use_stop_loss:
+        stop_loss_pct = st.sidebar.slider("止损百分比(%)", 1, 10, 5) / 100
+    
+    risk_per_trade = st.sidebar.slider("单笔风险(%)", 1, 5, 2) / 100
+    initial_capital = st.sidebar.number_input("初始资金", value=100000, step=10000)
+    
+    # 参数优化选项
+    st.sidebar.subheader("参数优化")
+    enable_optimization = st.sidebar.checkbox("启用参数优化")
+    
+    if st.sidebar.button("🚀 运行回测"):
+        # 获取数据
+        with st.spinner("正在获取数据..."):
+            if data_source == "Yahoo Finance":
+                data = DataManager.get_yahoo_data(symbol, period)
             else:
-                stock = parsed_input['stocks'][0]  # 取第一个股票
-                
-                if parsed_input['is_contest_mode']:
-                    # 运行策略竞赛
-                    results, contest_result = st.session_state.processor.run_strategy_contest(stock)
-                    response = st.session_state.processor.generate_contest_response(stock, results, contest_result)
-                    
-                    # 存储竞赛结果用于可视化
-                    if 'contest_results' not in st.session_state:
-                        st.session_state.contest_results = {}
-                    st.session_state.contest_results[stock] = {
-                        'results': results,
-                        'contest_result': contest_result
-                    }
+                if 'api_key' in locals() and api_key:
+                    data = DataManager.get_alpha_vantage_data(symbol, api_key)
                 else:
-                    response = "🤖 我检测到您想要单策略分析。要不要试试策略竞赛模式？输入 'AAPL策略竞赛' 来对比所有策略的表现！"
+                    st.error("请输入Alpha Vantage API Key")
+                    return
         
-        # 添加AI响应
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        display_message(response, False)
-        
-        # 如果有竞赛结果，显示图表选项
-        if 'contest_results' in st.session_state and st.session_state.contest_results:
-            st.markdown("---")
-            st.subheader("📊 竞赛结果可视化")
+        if data is not None and not data.empty:
+            # 添加技术指标
+            data = TechnicalIndicators.add_all_indicators(data)
             
-            cols = st.columns(len(st.session_state.contest_results))
-            for i, stock in enumerate(st.session_state.contest_results.keys()):
-                with cols[i]:
-                    if st.button(f"🏆 {stock} 竞赛图表", key=f"contest_chart_{stock}"):
-                        contest_data = st.session_state.contest_results[stock]
-                        show_contest_chart(stock, contest_data['results'], contest_data['contest_result'])
+            # 参数优化
+            if enable_optimization:
+                with st.spinner("正在优化参数..."):
+                    if selected_strategy == "趋势跟踪":
+                        param_grid = {
+                            'short_window': [10, 15, 20, 25],
+                            'long_window': [40, 50, 60, 70]
+                        }
+                    elif selected_strategy == "均值回归":
+                        param_grid = {
+                            'window': [15, 20, 25, 30],
+                            'std_dev': [1.5, 2.0, 2.5]
+                        }
+                    else:
+                        param_grid = [params]  # 默认参数
+                    
+                    if len(param_grid) > 1:
+                        best_params, best_score, _ = ParameterOptimizer.grid_search(
+                            data, strategy_engine.strategies[selected_strategy], param_grid
+                        )
+                        st.success(f"最优参数: {best_params}, 夏普比率: {best_score:.2f}")
+                        params = best_params
+            
+            # 运行策略
+            with st.spinner("正在运行策略..."):
+                strategy_data, strategy_description = strategy_engine.strategies[selected_strategy](data.copy(), params)
+                
+                # 添加风险管理
+                if use_stop_loss:
+                    strategy_data = RiskManager.add_stop_loss(strategy_data, stop_loss_pct)
+                
+                strategy_data = RiskManager.calculate_position_size(strategy_data, risk_per_trade, initial_capital)
+                
+                # 运行回测
+                backtest_data = BacktestEngine.run_backtest(strategy_data, initial_capital)
+                
+                # 计算指标
+                metrics = BacktestEngine.calculate_metrics(backtest_data)
+            
+            # 显示结果
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.subheader("📈 策略表现")
+                
+                # 策略描述
+                st.markdown(f'<div class="strategy-description"><strong>策略说明:</strong> {strategy_description}</div>', 
+                           unsafe_allow_html=True)
+                
+                # 价格和信号图表
+                fig = make_subplots(
+                    rows=3, cols=1,
+                    shared_xaxes=True,
+                    vertical_spacing=0.05,
+                    subplot_titles=('价格走势与交易信号', '技术指标', '策略收益'),
+                    row_width=[0.3, 0.3, 0.4]
+                )
+                
+                # 价格线
+                fig.add_trace(
+                    go.Scatter(x=backtest_data.index, y=backtest_data['Close'], 
+                              name='收盘价', line=dict(color='blue')),
+                    row=1, col=1
+                )
+                
+                # 买入信号
+                buy_signals = backtest_data[backtest_data['Position'] == 1]
+                if not buy_signals.empty:
+                    fig.add_trace(
+                        go.Scatter(x=buy_signals.index, y=buy_signals['Close'],
+                                  mode='markers', name='买入', 
+                                  marker=dict(color='green', size=8, symbol='triangle-up')),
+                        row=1, col=1
+                    )
+                
+                # 卖出信号
+                sell_signals = backtest_data[backtest_data['Position'] == -1]
+                if not sell_signals.empty:
+                    fig.add_trace(
+                        go.Scatter(x=sell_signals.index, y=sell_signals['Close'],
+                                  mode='markers', name='卖出',
+                                  marker=dict(color='red', size=8, symbol='triangle-down')),
+                        row=1, col=1
+                    )
+                
+                # 技术指标
+                if 'RSI' in backtest_data.columns:
+                    fig.add_trace(
+                        go.Scatter(x=backtest_data.index, y=backtest_data['RSI'],
+                                  name='RSI', line=dict(color='purple')),
+                        row=2, col=1
+                    )
+                
+                # 策略收益
+                fig.add_trace(
+                    go.Scatter(x=backtest_data.index, y=(backtest_data['Cumulative_Returns']-1)*100,
+                              name='买入持有收益(%)', line=dict(color='gray')),
+                    row=3, col=1
+                )
+                
+                fig.add_trace(
+                    go.Scatter(x=backtest_data.index, y=(backtest_data['Strategy_Cumulative']-1)*100,
+                              name='策略收益(%)', line=dict(color='green')),
+                    row=3, col=1
+                )
+                
+                fig.update_layout(height=800, showlegend=True, title_text=f"{symbol} 策略回测结果")
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                st.subheader("📊 回测指标")
+                
+                # 指标展示
+                for metric, value in metrics.items():
+                    st.markdown(f'<div class="metric-card"><strong>{metric}:</strong> {value}</div>', 
+                               unsafe_allow_html=True)
+                    st.markdown("")  # 空行
+                
+                # 风险指标
+                st.subheader("🛡️ 风险分析")
+                strategy_returns = backtest_data['Strategy_Returns'].dropna()
+                
+                if len(strategy_returns) > 0:
+                    fig_risk = go.Figure()
+                    fig_risk.add_trace(go.Histogram(x=strategy_returns*100, name='收益分布'))
+                    fig_risk.update_layout(title="策略收益分布", xaxis_title="日收益率(%)")
+                    st.plotly_chart(fig_risk, use_container_width=True)
+                
+                # 月度收益热力图
+                st.subheader("📅 月度收益")
+                monthly_returns = strategy_returns.resample('M').apply(lambda x: (1+x).prod()-1)
+                if len(monthly_returns) > 0:
+                    monthly_df = monthly_returns.to_frame('Returns')
+                    monthly_df['Year'] = monthly_df.index.year
+                    monthly_df['Month'] = monthly_df.index.month
+                    pivot_table = monthly_df.pivot_table(values='Returns', index='Year', columns='Month')
+                    
+                    fig_heatmap = px.imshow(pivot_table.values*100, 
+                                          x=[f'{i}月' for i in range(1, 13)],
+                                          y=pivot_table.index,
+                                          color_continuous_scale='RdYlGn',
+                                          aspect='auto')
+                    fig_heatmap.update_layout(title="月度收益率热力图(%)")
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+            
+            # 新闻情感分析
+            st.subheader("📰 市场情感分析")
+            news_data = DataManager.get_news_sentiment(symbol)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_sentiment = px.line(news_data, x='Date', y='Sentiment', title='新闻情感趋势')
+                st.plotly_chart(fig_sentiment, use_container_width=True)
+            
+            with col2:
+                fig_news_count = px.bar(news_data, x='Date', y='News_Count', title='新闻数量统计')
+                st.plotly_chart(fig_news_count, use_container_width=True)
+            
+            # 策略解释
+            st.subheader("🤖 AI策略解释")
+            explanation = f"""
+            **策略逻辑分析:**
+            
+            1. **选择理由**: {strategy_description}
+            2. **参数设置**: {params}
+            3. **风险控制**: {'启用止损' + str(stop_loss_pct*100) + '%' if use_stop_loss else '未启用止损'}
+            4. **预期表现**: 基于历史数据，该策略的夏普比率为 {metrics['夏普比率']}，最大回撤为 {metrics['最大回撤']}
+            
+            **市场适应性**: 
+            - 该策略在趋势明显的市场中表现较好
+            - 建议在横盘震荡市场中降低仓位或暂停使用
+            - 需要密切关注市场情绪变化和宏观经济指标
+            
+            **优化建议**:
+            - 可以考虑结合多个时间框架进行确认
+            - 建议定期重新优化参数以适应市场变化
+            - 可以加入成交量指标作为辅助确认信号
+            """
+            
+            st.markdown(explanation)
+            
+            # 数据导出功能
+            st.subheader("📁 数据导出")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("📊 导出回测数据"):
+                    csv = backtest_data.to_csv()
+                    st.download_button(
+                        label="下载CSV文件",
+                        data=csv,
+                        file_name=f"{symbol}_{selected_strategy}_backtest.csv",
+                        mime="text/csv"
+                    )
+            
+            with col2:
+                if st.button("📈 导出交易信号"):
+                    signals = backtest_data[backtest_data['Position'] != 0][['Close', 'Position', 'Signal']].copy()
+                    csv_signals = signals.to_csv()
+                    st.download_button(
+                        label="下载交易信号",
+                        data=csv_signals,
+                        file_name=f"{symbol}_{selected_strategy}_signals.csv",
+                        mime="text/csv"
+                    )
+            
+            with col3:
+                if st.button("📋 导出策略报告"):
+                    report = f"""
+# {symbol} {selected_strategy} 策略报告
+
+## 策略参数
+{json.dumps(params, indent=2, ensure_ascii=False)}
+
+## 回测指标
+{json.dumps(metrics, indent=2, ensure_ascii=False)}
+
+## 策略描述
+{strategy_description}
+
+## 生成时间
+{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                    """
+                    st.download_button(
+                        label="下载策略报告",
+                        data=report,
+                        file_name=f"{symbol}_{selected_strategy}_report.md",
+                        mime="text/markdown"
+                    )
+
+# 增强功能模块
+class AdvancedFeatures:
+    @staticmethod
+    def portfolio_optimization(symbols, weights=None):
+        """投资组合优化"""
+        if weights is None:
+            weights = [1/len(symbols)] * len(symbols)
         
-        # 重新运行显示更新
-        st.rerun()
+        portfolio_data = {}
+        for symbol in symbols:
+            data = DataManager.get_yahoo_data(symbol, "1y")
+            if data is not None:
+                portfolio_data[symbol] = data['Close'].pct_change().dropna()
+        
+        if portfolio_data:
+            portfolio_df = pd.DataFrame(portfolio_data)
+            
+            # 计算协方差矩阵
+            cov_matrix = portfolio_df.cov() * 252
+            
+            # 计算投资组合指标
+            portfolio_return = (portfolio_df.mean() * weights).sum() * 252
+            portfolio_vol = np.sqrt(np.dot(weights, np.dot(cov_matrix, weights)))
+            sharpe_ratio = portfolio_return / portfolio_vol
+            
+            return {
+                'expected_return': portfolio_return,
+                'volatility': portfolio_vol,
+                'sharpe_ratio': sharpe_ratio,
+                'weights': dict(zip(symbols, weights))
+            }
+        return None
     
-    # 侧边栏功能
-    with st.sidebar:
-        st.title("🏆 竞赛控制台")
+    @staticmethod
+    def monte_carlo_simulation(data, days=252, simulations=1000):
+        """蒙特卡洛模拟"""
+        returns = data['Close'].pct_change().dropna()
         
-        # 竞赛统计
-        if hasattr(st.session_state, 'processor'):
-            contest_engine = st.session_state.processor.strategy_engine.contest_engine
-            st.subheader("📈 竞赛统计")
-            st.metric("历史竞赛次数", len(contest_engine.contest_history))
-            st.metric("注册策略数量", len(contest_engine.agents))
+        last_price = data['Close'].iloc[-1]
+        mean_return = returns.mean()
+        std_return = returns.std()
         
-        if st.button("🗑️ 清除对话历史"):
-            st.session_state.messages = [st.session_state.messages[0]]  # 保留欢迎消息
-            if 'contest_results' in st.session_state:
-                del st.session_state.contest_results
-            st.rerun()
+        # 模拟价格路径
+        simulation_results = []
         
-        if st.button("📋 竞赛示例"):
-            examples = [
-                "AAPL策略竞赛",
-                "TSLA哪个策略最好？",
-                "比较GOOGL所有策略表现",
-                "MSFT策略对比分析",
-                "NVDA最优策略组合"
-            ]
-            st.write("💡 **竞赛示例问题：**")
-            for example in examples:
-                st.write(f"• {example}")
+        for _ in range(simulations):
+            prices = [last_price]
+            for day in range(days):
+                random_return = np.random.normal(mean_return, std_return)
+                next_price = prices[-1] * (1 + random_return)
+                prices.append(next_price)
+            simulation_results.append(prices)
         
-        st.markdown("---")
-        st.markdown("### 🔬 ContestTrade框架")
-        st.markdown("**三阶段竞赛机制：**")
-        st.markdown("1. **量化** - 评估历史表现")
-        st.markdown("2. **预测** - AI预测未来表现") 
-        st.markdown("3. **分配** - 智能权重分配")
+        return np.array(simulation_results)
+
+# 实时监控模块
+class RealTimeMonitor:
+    @staticmethod
+    def create_alerts(data, strategy_data):
+        """创建交易提醒"""
+        latest_signal = strategy_data['Signal'].iloc[-1]
+        latest_price = data['Close'].iloc[-1]
         
-        st.markdown("---")
-        st.markdown("**参与竞赛的策略：**")
-        st.markdown("🥇 趋势跟踪（双均线）")
-        st.markdown("🥈 均值回归（布林带）") 
-        st.markdown("🥉 动量策略（RSI+MACD）")
-        st.markdown("🏅 突破策略（通道突破）")
-        st.markdown("🏅 网格交易")
-        st.markdown("🏅 配对交易")
+        alerts = []
         
-        st.markdown("---")
-        st.markdown("### 🎯 竞赛优势")
-        st.markdown("✅ **动态权重分配**")
-        st.markdown("✅ **AI表现预测**")
-        st.markdown("✅ **市场适应性**")
-        st.markdown("✅ **策略组合优化**")
+        if latest_signal == 1:
+            alerts.append({
+                'type': 'BUY',
+                'message': f"买入信号触发! 当前价格: ${latest_price:.2f}",
+                'timestamp': datetime.now()
+            })
+        elif latest_signal == -1:
+            alerts.append({
+                'type': 'SELL',
+                'message': f"卖出信号触发! 当前价格: ${latest_price:.2f}",
+                'timestamp': datetime.now()
+            })
         
-        # 高级设置
-        with st.expander("⚙️ 高级设置"):
-            st.slider("历史表现权重", 0.0, 1.0, 0.7, 0.1, key="history_weight")
-            st.slider("预测表现权重", 0.0, 1.0, 0.3, 0.1, key="prediction_weight")
-            st.selectbox("市场状态", ["Normal", "Volatile", "Trending", "Ranging"], key="market_regime")
+        return alerts
+
+# 添加侧边栏的高级功能选项
+def add_advanced_sidebar():
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔬 高级功能")
+    
+    # 投资组合分析
+    if st.sidebar.checkbox("投资组合分析"):
+        st.sidebar.text_input("投资组合股票(逗号分隔)", value="AAPL,GOOGL,MSFT", key="portfolio_symbols")
+    
+    # 蒙特卡洛模拟
+    monte_carlo = st.sidebar.checkbox("蒙特卡洛模拟")
+    if monte_carlo:
+        simulation_days = st.sidebar.slider("模拟天数", 30, 365, 252)
+        num_simulations = st.sidebar.slider("模拟次数", 100, 2000, 1000)
+    
+    # 实时监控
+    real_time = st.sidebar.checkbox("实时监控")
+    
+    return {
+        'portfolio_analysis': st.session_state.get('portfolio_symbols'),
+        'monte_carlo': monte_carlo,
+        'simulation_days': simulation_days if monte_carlo else None,
+        'num_simulations': num_simulations if monte_carlo else None,
+        'real_time': real_time
+    }
+
+# 主函数更新
+def main():
+    # 标题
+    st.markdown('<h1 class="main-header">🚀 QuantGPT Pro - AI量化交易平台</h1>', unsafe_allow_html=True)
+    
+    # 添加功能选项卡
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 策略回测", "📊 投资组合", "🎲 风险模拟", "⚡ 实时监控"])
+    
+    # 侧边栏
+    st.sidebar.title("📊 策略配置")
+    
+    # 选择数据源
+    data_source = st.sidebar.selectbox(
+        "选择数据源",
+        ["Yahoo Finance", "Alpha Vantage"]
+    )
+    
+    # 股票代码输入
+    symbol = st.sidebar.text_input("股票代码", value="AAPL").upper()
+    
+    # Alpha Vantage API Key（如果选择）
+    if data_source == "Alpha Vantage":
+        api_key = st.sidebar.text_input("Alpha Vantage API Key", type="password")
+    
+    # 时间范围
+    period = st.sidebar.selectbox(
+        "数据时间范围",
+        ["1y", "2y", "5y", "max"]
+    )
+    
+    # 策略选择
+    strategy_engine = StrategyEngine()
+    selected_strategy = st.sidebar.selectbox(
+        "选择策略类型",
+        list(strategy_engine.strategies.keys())
+    )
+    
+    # 获取高级功能设置
+    advanced_options = add_advanced_sidebar()
+    
+    with tab1:
+        # 原有的策略回测功能保持不变
+        # 策略参数设置
+        st.sidebar.subheader("策略参数")
+        params = {}
+        
+        if selected_strategy == "趋势跟踪":
+            params['short_window'] = st.sidebar.slider("短期窗口", 5, 50, 20)
+            params['long_window'] = st.sidebar.slider("长期窗口", 20, 200, 50)
+        elif selected_strategy == "均值回归":
+            params['window'] = st.sidebar.slider("移动窗口", 10, 50, 20)
+            params['std_dev'] = st.sidebar.slider("标准差倍数", 1.0, 3.0, 2.0, 0.1)
+        elif selected_strategy == "动量策略":
+            params['window'] = st.sidebar.slider("RSI窗口", 5, 30, 14)
+            params['threshold'] = st.sidebar.slider("RSI阈值", 60, 80, 70)
+        elif selected_strategy == "配对交易":
+            params['window'] = st.sidebar.slider("统计窗口", 20, 60, 30)
+        elif selected_strategy == "突破策略":
+            params['window'] = st.sidebar.slider("突破窗口", 10, 50, 20)
+        elif selected_strategy == "网格交易":
+            params['grid_size'] = st.sidebar.slider("网格大小(%)", 0.5, 5.0, 2.0, 0.1) / 100
+        
+        # 风险管理参数
+        st.sidebar.subheader("风险管理")
+        use_stop_loss = st.sidebar.checkbox("启用止损")
+        if use_stop_loss:
+            stop_loss_pct = st.sidebar.slider("止损百分比(%)", 1, 10, 5) / 100
+        
+        risk_per_trade = st.sidebar.slider("单笔风险(%)", 1, 5, 2) / 100
+        initial_capital = st.sidebar.number_input("初始资金", value=100000, step=10000)
+        
+        # 参数优化选项
+        st.sidebar.subheader("参数优化")
+        enable_optimization = st.sidebar.checkbox("启用参数优化")
+        
+        if st.sidebar.button("🚀 运行回测"):
+            # [原有的回测逻辑保持不变]
+            # 获取数据
+            with st.spinner("正在获取数据..."):
+                if data_source == "Yahoo Finance":
+                    data = DataManager.get_yahoo_data(symbol, period)
+                else:
+                    if 'api_key' in locals() and api_key:
+                        data = DataManager.get_alpha_vantage_data(symbol, api_key)
+                    else:
+                        st.error("请输入Alpha Vantage API Key")
+                        return
+            
+            if data is not None and not data.empty:
+                # 添加技术指标
+                data = TechnicalIndicators.add_all_indicators(data)
+                
+                # 参数优化
+                if enable_optimization:
+                    with st.spinner("正在优化参数..."):
+                        if selected_strategy == "趋势跟踪":
+                            param_grid = {
+                                'short_window': [10, 15, 20, 25],
+                                'long_window': [40, 50, 60, 70]
+                            }
+                        elif selected_strategy == "均值回归":
+                            param_grid = {
+                                'window': [15, 20, 25, 30],
+                                'std_dev': [1.5, 2.0, 2.5]
+                            }
+                        else:
+                            param_grid = [params]  # 默认参数
+                        
+                        if len(param_grid) > 1:
+                            best_params, best_score, _ = ParameterOptimizer.grid_search(
+                                data, strategy_engine.strategies[selected_strategy], param_grid
+                            )
+                            st.success(f"最优参数: {best_params}, 夏普比率: {best_score:.2f}")
+                            params = best_params
+                
+                # 运行策略
+                with st.spinner("正在运行策略..."):
+                    strategy_data, strategy_description = strategy_engine.strategies[selected_strategy](data.copy(), params)
+                    
+                    # 添加风险管理
+                    if use_stop_loss:
+                        strategy_data = RiskManager.add_stop_loss(strategy_data, stop_loss_pct)
+                    
+                    strategy_data = RiskManager.calculate_position_size(strategy_data, risk_per_trade, initial_capital)
+                    
+                    # 运行回测
+                    backtest_data = BacktestEngine.run_backtest(strategy_data, initial_capital)
+                    
+                    # 计算指标
+                    metrics = BacktestEngine.calculate_metrics(backtest_data)
+                
+                # 显示策略回测结果（保持原有代码）
+                st.subheader("📈 策略表现")
+                
+                # 策略描述
+                st.markdown(f'<div class="strategy-description"><strong>策略说明:</strong> {strategy_description}</div>', 
+                           unsafe_allow_html=True)
+                
+                # 显示回测指标
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("总收益率", metrics["总收益率"])
+                with col2:
+                    st.metric("夏普比率", metrics["夏普比率"])
+                with col3:
+                    st.metric("最大回撤", metrics["最大回撤"])
+                with col4:
+                    st.metric("胜率", metrics["胜率"])
+    
+    with tab2:
+        st.subheader("📊 投资组合分析")
+        
+        # 投资组合输入
+        portfolio_symbols = st.text_input("请输入股票代码（逗号分隔）", value="AAPL,GOOGL,MSFT,TSLA")
+        symbols_list = [s.strip().upper() for s in portfolio_symbols.split(",")]
+        
+        if st.button("分析投资组合"):
+            with st.spinner("正在分析投资组合..."):
+                # 获取投资组合数据
+                portfolio_data = {}
+                for symbol in symbols_list:
+                    data = DataManager.get_yahoo_data(symbol, "1y")
+                    if data is not None:
+                        portfolio_data[symbol] = data['Close']
+                
+                if portfolio_data:
+                    portfolio_df = pd.DataFrame(portfolio_data)
+                    returns_df = portfolio_df.pct_change().dropna()
+                    
+                    # 等权重投资组合
+                    equal_weights = [1/len(symbols_list)] * len(symbols_list)
+                    portfolio_result = AdvancedFeatures.portfolio_optimization(symbols_list, equal_weights)
+                    
+                    if portfolio_result:
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.subheader("投资组合指标")
+                            st.metric("预期年化收益", f"{portfolio_result['expected_return']:.2%}")
+                            st.metric("预期年化波动", f"{portfolio_result['volatility']:.2%}")
+                            st.metric("夏普比率", f"{portfolio_result['sharpe_ratio']:.2f}")
+                        
+                        with col2:
+                            st.subheader("权重分配")
+                            weights_df = pd.DataFrame(list(portfolio_result['weights'].items()), 
+                                                    columns=['股票', '权重'])
+                            fig_pie = px.pie(weights_df, values='权重', names='股票', title='投资组合权重分配')
+                            st.plotly_chart(fig_pie)
+                        
+                        # 相关性热力图
+                        st.subheader("股票相关性分析")
+                        corr_matrix = returns_df.corr()
+                        fig_corr = px.imshow(corr_matrix, text_auto=True, aspect="auto",
+                                           title="股票收益率相关性矩阵")
+                        st.plotly_chart(fig_corr, use_container_width=True)
+                        
+                        # 累计收益对比
+                        st.subheader("累计收益对比")
+                        cumulative_returns = (1 + returns_df).cumprod()
+                        fig_cumret = px.line(cumulative_returns, title="各股票累计收益对比")
+                        st.plotly_chart(fig_cumret, use_container_width=True)
+    
+    with tab3:
+        st.subheader("🎲 蒙特卡洛风险模拟")
+        
+        simulation_symbol = st.selectbox("选择模拟股票", ["AAPL", "GOOGL", "MSFT", "TSLA"])
+        simulation_days = st.slider("模拟天数", 30, 365, 252)
+        num_simulations = st.slider("模拟次数", 100, 2000, 1000)
+        
+        if st.button("开始蒙特卡洛模拟"):
+            with st.spinner("正在运行蒙特卡洛模拟..."):
+                data = DataManager.get_yahoo_data(simulation_symbol, "2y")
+                if data is not None:
+                    simulation_results = AdvancedFeatures.monte_carlo_simulation(
+                        data, simulation_days, num_simulations
+                    )
+                    
+                    # 计算统计指标
+                    final_prices = simulation_results[:, -1]
+                    current_price = data['Close'].iloc[-1]
+                    
+                    price_change = (final_prices - current_price) / current_price
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader("模拟结果统计")
+                        st.metric("当前价格", f"${current_price:.2f}")
+                        st.metric("预期价格", f"${np.mean(final_prices):.2f}")
+                        st.metric("价格中位数", f"${np.median(final_prices):.2f}")
+                        st.metric("5%分位数", f"${np.percentile(final_prices, 5):.2f}")
+                        st.metric("95%分位数", f"${np.percentile(final_prices, 95):.2f}")
+                        
+                        # VaR计算
+                        var_5 = np.percentile(price_change, 5)
+                        st.metric("VaR (5%)", f"{var_5:.2%}")
+                    
+                    with col2:
+                        # 价格分布直方图
+                        fig_hist = px.histogram(x=final_prices, nbins=50, 
+                                              title=f"{simulation_symbol} {simulation_days}天后价格分布")
+                        fig_hist.add_vline(x=current_price, line_dash="dash", 
+                                         annotation_text="当前价格")
+                        st.plotly_chart(fig_hist)
+                    
+                    # 模拟路径图
+                    st.subheader("价格路径模拟")
+                    # 显示前100条路径以避免图表过于拥挤
+                    paths_to_show = min(100, num_simulations)
+                    fig_paths = go.Figure()
+                    
+                    for i in range(paths_to_show):
+                        fig_paths.add_trace(go.Scatter(
+                            y=simulation_results[i],
+                            mode='lines',
+                            line=dict(width=0.5, color='lightblue'),
+                            showlegend=False
+                        ))
+                    
+                    fig_paths.add_trace(go.Scatter(
+                        y=np.mean(simulation_results, axis=0),
+                        mode='lines',
+                        line=dict(width=3, color='red'),
+                        name='平均路径'
+                    ))
+                    
+                    fig_paths.update_layout(title=f"{simulation_symbol} 蒙特卡洛价格路径模拟",
+                                          xaxis_title="天数", yaxis_title="价格")
+                    st.plotly_chart(fig_paths, use_container_width=True)
+    
+    with tab4:
+        st.subheader("⚡ 实时监控")
+        
+        if st.button("启动实时监控"):
+            # 实时数据获取和监控
+            monitoring_symbol = st.selectbox("监控股票", ["AAPL", "GOOGL", "MSFT", "TSLA"], key="monitor")
+            
+            # 创建实时更新的占位符
+            price_placeholder = st.empty()
+            alert_placeholder = st.empty()
+            
+            # 模拟实时更新（实际应用中应该使用WebSocket或定时刷新）
+            current_data = DataManager.get_yahoo_data(monitoring_symbol, "1d")
+            if current_data is not None:
+                current_price = current_data['Close'].iloc[-1]
+                
+                with price_placeholder.container():
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("当前价格", f"${current_price:.2f}")
+                    with col2:
+                        daily_change = current_data['Close'].pct_change().iloc[-1]
+                        st.metric("日内涨跌", f"{daily_change:.2%}")
+                    with col3:
+                        volume = current_data['Volume'].iloc[-1] if 'Volume' in current_data.columns else 0
+                        st.metric("成交量", f"{volume:,.0f}")
+                
+                # 检查交易信号
+                data_for_strategy = TechnicalIndicators.add_all_indicators(current_data)
+                strategy_data, _ = strategy_engine.strategies[selected_strategy](data_for_strategy.copy(), params)
+                
+                alerts = RealTimeMonitor.create_alerts(current_data, strategy_data)
+                
+                if alerts:
+                    with alert_placeholder.container():
+                        for alert in alerts:
+                            if alert['type'] == 'BUY':
+                                st.success(f"🟢 {alert['message']}")
+                            else:
+                                st.error(f"🔴 {alert['message']}")
 
 if __name__ == "__main__":
     main()
