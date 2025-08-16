@@ -1,4 +1,658 @@
-import streamlit as st
+strategy_insights = {
+                "趋势跟踪": "适合趋势明确的市场环境，在震荡市场中可能产生较多假信号",
+                "均值回归": "在震荡市场中表现优秀，但在强趋势市场中可能错失机会",
+                "动量策略": "能够捕捉强势行情，但需要注意动量衰减的风险",
+                "突破策略": "适合捕捉关键突破点位，注意假突破的风险",
+                "网格交易": "适合区间震荡市场，在单边趋势中需要谨慎使用",
+                "量价策略": "成交量确认提高信号质量，但在低流动性市场中效果有限",
+                "波动率策略": "能够捕捉市场情绪变化，适合波动率交易专家",
+                "配对交易": "市场中性策略，适合对冲风险，需要深入的统计分析"
+            }
+            
+            if strategy in strategy_insights:
+                assessment += f"\n**📋 策略特色：** {strategy_insights[strategy]}\n"
+            
+            return assessment
+            
+        except (ValueError, KeyError) as e:
+            return f"\n### 🤖 QuantGPT AI 评估\n\n策略分析完成，请查看详细指标。如需更精准评估，请确保数据完整性。"
+
+# 高级图表生成器
+class ProfessionalChartGenerator:
+    @staticmethod
+    def create_comprehensive_chart(data, stock, strategy, params):
+        """创建专业综合分析图表"""
+        fig = make_subplots(
+            rows=5, cols=2,
+            shared_xaxes=True,
+            vertical_spacing=0.02,
+            horizontal_spacing=0.05,
+            subplot_titles=(
+                f'{stock} 价格走势与交易信号', '技术指标面板',
+                '策略收益 vs 基准', '风险指标监控',
+                '交易信号分布', '月度收益分析',
+                '回撤分析', '波动率分析',
+                '资金曲线', '绩效雷达图'
+            ),
+            specs=[[{"colspan": 2}, None],
+                   [{"colspan": 2}, None], 
+                   [{"colspan": 2}, None],
+                   [{}, {}],
+                   [{}, {}]],
+            row_heights=[0.3, 0.2, 0.2, 0.15, 0.15]
+        )
+        
+        # 1. 主价格图表
+        fig.add_trace(
+            go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'], 
+                low=data['Low'],
+                close=data['Close'],
+                name=f'{stock} K线',
+                increasing_line_color='#26a69a',
+                decreasing_line_color='#ef5350'
+            ), row=1, col=1
+        )
+        
+        # 添加移动平均线
+        if 'SMA_short' in data.columns:
+            fig.add_trace(
+                go.Scatter(x=data.index, y=data['SMA_short'], 
+                          name=f'SMA{params.get("short_window", 20)}',
+                          line=dict(color='orange', width=1.5)),
+                row=1, col=1
+            )
+        
+        if 'SMA_long' in data.columns:
+            fig.add_trace(
+                go.Scatter(x=data.index, y=data['SMA_long'],
+                          name=f'SMA{params.get("long_window", 50)}', 
+                          line=dict(color='blue', width=1.5)),
+                row=1, col=1
+            )
+        
+        # 交易信号
+        buy_signals = data[data['Position'] == 1]
+        sell_signals = data[data['Position'] == -1]
+        
+        if not buy_signals.empty:
+            fig.add_trace(
+                go.Scatter(x=buy_signals.index, y=buy_signals['Close'],
+                          mode='markers', name='买入信号',
+                          marker=dict(color='green', size=15, symbol='triangle-up')),
+                row=1, col=1
+            )
+        
+        if not sell_signals.empty:
+            fig.add_trace(
+                go.Scatter(x=sell_signals.index, y=sell_signals['Close'],
+                          mode='markers', name='卖出信号',
+                          marker=dict(color='red', size=15, symbol='triangle-down')),
+                row=1, col=1
+            )
+        
+        # 2. 技术指标
+        if 'RSI' in data.columns:
+            fig.add_trace(
+                go.Scatter(x=data.index, y=data['RSI'], name='RSI',
+                          line=dict(color='purple', width=2)),
+                row=2, col=1
+            )
+            fig.add_hline(y=70, row=2, col=1, line_dash="dash", line_color="red")
+            fig.add_hline(y=30, row=2, col=1, line_dash="dash", line_color="green")
+        
+        # 3. 收益对比
+        benchmark_return = (data['Cumulative_Returns'] - 1) * 100
+        strategy_return = (data['Strategy_Cumulative'] - 1) * 100
+        
+        fig.add_trace(
+            go.Scatter(x=data.index, y=benchmark_return,
+                      name='基准收益(%)', line=dict(color='gray', width=2)),
+            row=3, col=1
+        )
+        
+        fig.add_trace(
+            go.Scatter(x=data.index, y=strategy_return,
+                      name='策略收益(%)', line=dict(color='green', width=3)),
+            row=3, col=1
+        )
+        
+        # 4. 回撤分析
+        cumulative = data['Strategy_Cumulative']
+        running_max = cumulative.expanding().max()
+        drawdown = (cumulative - running_max) / running_max * 100
+        
+        fig.add_trace(
+            go.Scatter(x=data.index, y=drawdown, name='策略回撤(%)',
+                      fill='tonexty', fillcolor='rgba(255,0,0,0.3)',
+                      line=dict(color='red', width=1)),
+            row=4, col=1
+        )
+        
+        # 5. 波动率分析
+        rolling_vol = data['Net_Strategy_Returns'].rolling(window=30).std() * np.sqrt(252) * 100
+        fig.add_trace(
+            go.Scatter(x=data.index, y=rolling_vol, name='30日滚动波动率(%)',
+                      line=dict(color='orange', width=2)),
+            row=4, col=2
+        )
+        
+        # 6. 资金曲线
+        fig.add_trace(
+            go.Scatter(x=data.index, y=data['Portfolio_Value'],
+                      name='资金曲线', line=dict(color='blue', width=2)),
+            row=5, col=1
+        )
+        
+        # 7. 月度收益热力图数据准备
+        monthly_returns = data['Net_Strategy_Returns'].resample('M').apply(lambda x: (1 + x).prod() - 1)
+        monthly_returns_pct = monthly_returns * 100
+        
+        if len(monthly_returns_pct) > 0:
+            fig.add_trace(
+                go.Bar(x=monthly_returns_pct.index, y=monthly_returns_pct.values,
+                      name='月度收益(%)', marker_color=monthly_returns_pct.apply(
+                          lambda x: 'green' if x > 0 else 'red')),
+                row=5, col=2
+            )
+        
+        # 更新布局
+        fig.update_layout(
+            height=1200,
+            title=f"{stock} - {strategy} 专业分析图表",
+            showlegend=True,
+            template="plotly_white",
+            font=dict(family="Inter, sans-serif"),
+            title_font_size=20,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom", 
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+        
+        # 美化网格和坐标轴
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)')
+        
+        return fig
+    
+    @staticmethod
+    def create_strategy_comparison_chart(comparison_data):
+        """创建策略对比图表"""
+        strategies = list(comparison_data.keys())
+        metrics = ['总收益率', '夏普比率', '最大回撤', '胜率']
+        
+        fig = go.Figure()
+        
+        for metric in metrics:
+            values = []
+            for strategy in strategies:
+                try:
+                    value_str = comparison_data[strategy]['metrics'][metric]
+                    if '%' in value_str:
+                        value = float(value_str.replace('%', ''))
+                    else:
+                        value = float(value_str)
+                    values.append(value)
+                except:
+                    values.append(0)
+            
+            fig.add_trace(go.Scatterpolar(
+                r=values,
+                theta=strategies,
+                fill='toself',
+                name=metric
+            ))
+        
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=True, range=[0, max([max(values) for values in [values]])]),
+            ),
+            showlegend=True,
+            title="策略性能雷达图对比"
+        )
+        
+        return fig
+
+# 消息显示组件
+def display_message(message, is_user=False, message_id=None):
+    """显示专业聊天消息"""
+    message_class = "user" if is_user else "bot"
+    avatar = "👤" if is_user else "🤖"
+    
+    # 打字机效果的占位符
+    if message_id and not is_user:
+        placeholder = st.empty()
+        
+        # 显示打字指示器
+        with placeholder.container():
+            st.markdown(f"""
+            <div class="chat-message bot">
+                <div class="avatar">{avatar}</div>
+                <div class="message">
+                    <div class="typing-indicator">
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        QuantGPT 正在分析中...
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # 模拟思考时间
+        time.sleep(1.5)
+        
+        # 显示实际消息
+        placeholder.empty()
+    
+    st.markdown(f"""
+    <div class="chat-message {message_class}">
+        <div class="avatar">{avatar}</div>
+        <div class="message">{message}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 图表展示函数
+def show_professional_analysis_chart(stock):
+    """显示专业分析图表"""
+    if 'analysis_data' not in st.session_state or stock not in st.session_state.analysis_data:
+        st.error(f"没有 {stock} 的分析数据")
+        return
+    
+    analysis_info = st.session_state.analysis_data[stock]
+    data = analysis_info['data']
+    strategy = analysis_info['strategy']
+    params = analysis_info['params']
+    
+    # 创建专业图表
+    chart_generator = ProfessionalChartGenerator()
+    fig = chart_generator.create_comprehensive_chart(data, stock, strategy, params)
+    
+    # 在图表容器中显示
+    with st.container():
+        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 显示详细统计数据
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # 计算统计数据
+    total_trades = len(data[data['Position'] != 0])
+    winning_trades = len(data[(data['Position'] != 0) & (data['Net_Strategy_Returns'] > 0)])
+    final_return = (data['Strategy_Cumulative'].iloc[-1] - 1) * 100
+    max_dd = ((data['Strategy_Cumulative'] / data['Strategy_Cumulative'].expanding().max()) - 1).min() * 100
+    
+    with col1:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{total_trades}</div>
+            <div class="metric-label">总交易次数</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{winning_trades}</div>
+            <div class="metric-label">盈利交易</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{final_return:.1f}%</div>
+            <div class="metric-label">总收益率</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{max_dd:.1f}%</div>
+            <div class="metric-label">最大回撤</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# 策略对比功能
+def show_strategy_comparison():
+    """显示策略对比功能"""
+    st.markdown("### 🔄 策略性能对比")
+    
+    if 'analysis_data' not in st.session_state or len(st.session_state.analysis_data) < 2:
+        st.info("需要至少分析2个策略才能进行对比")
+        return
+    
+    # 选择对比的策略
+    available_analyses = list(st.session_state.analysis_data.keys())
+    selected_strategies = st.multiselect(
+        "选择要对比的策略分析", 
+        available_analyses,
+        default=available_analyses[:2] if len(available_analyses) >= 2 else available_analyses
+    )
+    
+    if len(selected_strategies) >= 2:
+        comparison_data = {}
+        
+        for strategy_key in selected_strategies:
+            analysis_info = st.session_state.analysis_data[strategy_key]
+            data = analysis_info['data']
+            
+            # 计算对比指标
+            metrics = ProfessionalBacktestEngine.calculate_advanced_metrics(data)
+            comparison_data[strategy_key] = {
+                'data': data,
+                'metrics': metrics,
+                'strategy': analysis_info['strategy']
+            }
+        
+        # 创建对比表格
+        metrics_df = pd.DataFrame({
+            strategy: data['metrics'] for strategy, data in comparison_data.items()
+        })
+        
+        st.dataframe(metrics_df, use_container_width=True)
+        
+        # 创建雷达图对比
+        chart_generator = ProfessionalChartGenerator()
+        radar_fig = chart_generator.create_strategy_comparison_chart(comparison_data)
+        st.plotly_chart(radar_fig, use_container_width=True)
+
+# 主应用程序
+def main():
+    # 英雄区域
+    st.markdown("""
+    <div class="hero-section">
+        <h1 class="hero-title">QuantGPT Pro</h1>
+        <p class="hero-subtitle">🚀 下一代AI量化交易分析平台 | 专业级策略回测 | 智能风险管理</p>
+        <div class="quick-action-grid">
+            <div class="quick-action-card">
+                <h4>📊 智能策略分析</h4>
+                <p>8种专业策略，AI驱动优化</p>
+            </div>
+            <div class="quick-action-card">
+                <h4>⚡ 实时风险监控</h4>
+                <p>VaR模型，专业风控体系</p>
+            </div>
+            <div class="quick-action-card">
+                <h4>🎯 精准回测引擎</h4>
+                <p>考虑滑点手续费的真实回测</p>
+            </div>
+            <div class="quick-action-card">
+                <h4>🤖 AI量化顾问</h4>
+                <p>智能评级，个性化建议</p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 系统状态指示器
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        status = "status-online" if YFINANCE_AVAILABLE else "status-offline"
+        status_text = "实时数据" if YFINANCE_AVAILABLE else "模拟数据"
+        st.markdown(f'<div class="status-indicator {status}">📡 {status_text}</div>', unsafe_allow_html=True)
+    
+    with col2:
+        ta_status = "status-online" if TA_AVAILABLE else "status-limited"
+        ta_text = "完整指标" if TA_AVAILABLE else "基础指标"
+        st.markdown(f'<div class="status-indicator {ta_status}">📈 {ta_text}</div>', unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown('<div class="status-indicator status-online">🛡️ 风控启用</div>', unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown('<div class="premium-badge">PRO版本</div>', unsafe_allow_html=True)
+    
+    # 聊天区域
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    
+    # 初始化会话状态
+    if "messages" not in st.session_state:
+        welcome_msg = """🎉 **欢迎来到 QuantGPT Pro！**
+
+我是您的专业AI量化交易顾问，具备以下核心能力：
+
+### 🎯 **专业策略库**
+• **趋势跟踪** - 多重均线确认系统
+• **均值回归** - 布林带+RSI双重过滤  
+• **动量策略** - RSI+MACD+随机指标三重确认
+• **突破策略** - 价量突破，关键点位捕捉
+• **网格交易** - ATR动态网格，智能仓位管理
+• **量价策略** - VWAP确认，提升信号质量
+• **波动率策略** - 波动率突破，情绪驱动交易
+• **配对交易** - 市场中性，统计套利
+
+### 🛡️ **专业风控体系**
+• **VaR风险模型** - 95%/99%置信区间风险评估
+• **动态止损止盈** - 智能风险控制
+• **仓位管理** - 凯利公式优化仓位
+• **回撤监控** - 实时最大回撤追踪
+
+### 📊 **高级分析工具**
+• **Sharpe/Sortino/Calmar比率** - 多维度风险调整收益
+• **专业图表** - K线+技术指标+资金曲线
+• **策略对比** - 雷达图多策略性能对比
+• **AI智能评级** - AAA-BB评级体系
+
+### 💡 **AI驱动建议**
+• **风险偏好匹配** - 保守/平衡/激进/专业型
+• **参数智能优化** - 自动寻优最佳参数组合
+• **实盘交易指导** - 具体仓位和止损建议
+
+**🚀 开始体验：**
+• `"分析AAPL的趋势策略"`
+• `"用保守型策略分析TSLA"`  
+• `"GOOGL的动量策略5%止损"`
+• `"对比MSFT的多种策略"`
+
+现在就告诉我您的投资需求，让我为您提供专业的量化分析！"""
+        
+        st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
+    
+    if "analyst" not in st.session_state:
+        st.session_state.analyst = QuantGPTAnalyst()
+    
+    # 显示聊天历史
+    for i, message in enumerate(st.session_state.messages):
+        display_message(message["content"], message["role"] == "user", f"msg_{i}")
+    
+    # 用户输入
+    user_input = st.chat_input("💬 请描述您的量化交易需求...", key="professional_input")
+    
+    if user_input:
+        # 添加用户消息
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        display_message(user_input, True)
+        
+        # 显示思考过程
+        thinking_placeholder = st.empty()
+        with thinking_placeholder.container():
+            st.markdown("""
+            <div class="chat-message bot">
+                <div class="avatar">🤖</div>
+                <div class="message">
+                    <div class="typing-indicator">
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        正在进行深度量化分析...
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # 处理用户输入
+        try:
+            time.sleep(2)  # 模拟AI思考时间
+            parsed_input = st.session_state.analyst.parse_user_input(user_input)
+            response = st.session_state.analyst.generate_intelligent_response(parsed_input)
+        except Exception as e:
+            response = f"😅 分析过程中遇到技术问题：{str(e)}\n\n请尝试重新描述您的需求，或联系技术支持。"
+        finally:
+            thinking_placeholder.empty()
+        
+        # 添加AI响应
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        display_message(response, False)
+        
+        # 如果有分析数据，显示高级功能
+        if 'analysis_data' in st.session_state and st.session_state.analysis_data:
+            st.markdown("---")
+            
+            # 图表分析区域
+            st.markdown("### 📊 专业图表分析")
+            chart_cols = st.columns(len(st.session_state.analysis_data))
+            
+            for i, stock in enumerate(st.session_state.analysis_data.keys()):
+                with chart_cols[i]:
+                    if st.button(f"📈 {stock} 专业分析", key=f"prof_chart_{stock}", use_container_width=True):
+                        show_professional_analysis_chart(stock)
+            
+            # 策略对比功能
+            if len(st.session_state.analysis_data) >= 2:
+                if st.button("🔄 策略性能对比", use_container_width=True):
+                    show_strategy_comparison()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 侧边栏专业功能
+    with st.sidebar:
+        st.markdown("""
+        <div style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; color: white; margin-bottom: 1.5rem;">
+            <h3>🎛️ 专业控制面板</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 快速清理
+        if st.button("🗑️ 清除分析历史", use_container_width=True):
+            st.session_state.messages = [st.session_state.messages[0]]
+            if 'analysis_data' in st.session_state:
+                del st.session_state.analysis_data
+            st.rerun()
+        
+        # 专业快速分析
+        st.markdown("### 🚀 专业快速分析")
+        
+        # 股票选择
+        popular_stocks = ["AAPL", "TSLA", "GOOGL", "MSFT", "NVDA", "AMZN", "META", "NFLX"]
+        selected_stock = st.selectbox("选择热门股票", popular_stocks)
+        
+        # 策略选择
+        all_strategies = ["趋势跟踪", "均值回归", "动量策略", "突破策略", "网格交易", "量价策略", "波动率策略", "配对交易"]
+        selected_strategy = st.selectbox("选择策略", all_strategies)
+        
+        # 风险偏好
+        risk_profiles = ["保守型", "平衡型", "激进型", "专业型"]
+        selected_risk = st.selectbox("风险偏好", risk_profiles)
+        
+        # 高级参数
+        with st.expander("⚙️ 高级参数设置"):
+            stop_loss = st.slider("止损百分比", 1, 10, 5) / 100
+            take_profit = st.slider("止盈百分比", 5, 20, 10) / 100
+            period = st.selectbox("分析周期", ["1mo", "3mo", "6mo", "1y", "2y"], index=4)
+        
+        if st.button("🎯 执行专业分析", use_container_width=True):
+            query = f"用{selected_risk}的{selected_strategy}分析{selected_stock}，设置{stop_loss*100:.0f}%止损和{take_profit*100:.0f}%止盈，分析周期{period}"
+            st.session_state.messages.append({"role": "user", "content": query})
+            
+            with st.spinner("🤖 AI正在执行深度分析..."):
+                parsed_input = st.session_state.analyst.parse_user_input(query)
+                response = st.session_state.analyst.generate_intelligent_response(parsed_input)
+            
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.rerun()
+        
+        # 示例策略库
+        with st.expander("💡 策略示例库"):
+            examples = [
+                "分析AAPL的趋势跟踪策略",
+                "TSLA的激进型动量策略分析",
+                "用5%止损分析GOOGL突破策略", 
+                "MSFT的保守型均值回归策略",
+                "NVDA的专业型量价策略回测",
+                "对比AMZN的多种策略表现"
+            ]
+            
+            for example in examples:
+                if st.button(example, key=f"ex_{hash(example)}", use_container_width=True):
+                    st.session_state.messages.append({"role": "user", "content": example})
+                    
+                    with st.spinner("分析中..."):
+                        parsed_input = st.session_state.analyst.parse_user_input(example)
+                        response = st.session_state.analyst.generate_intelligent_response(parsed_input)
+                    
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.rerun()
+        
+        # 系统信息
+        st.markdown("---")
+        st.markdown("### 📋 系统信息")
+        
+        system_info = f"""
+        **数据源：** {'yfinance (实时)' if YFINANCE_AVAILABLE else '高质量模拟数据'}
+        **技术指标：** {'TA-Lib (完整)' if TA_AVAILABLE else '内置专业指标'}
+        **策略数量：** 8种专业策略
+        **风险模型：** VaR + 动态止损
+        **评级体系：** AAA-BB智能评级
+        """
+        st.markdown(system_info)
+        
+        # 帮助信息
+        with st.expander("❓ 使用指南"):
+            st.markdown("""
+            **🎯 支持的输入格式：**
+            • 股票代码：AAPL, TSLA, ^GSPC
+            • 策略指定：趋势、动量、突破等
+            • 风险偏好：保守型、激进型等
+            • 参数设置：5%止损、20日均线等
+            
+            **📊 高级功能：**
+            • 多策略对比分析
+            • 实时风险监控
+            • AI智能评级
+            • 专业图表展示
+            
+            **💡 使用技巧：**
+            • 描述越详细，分析越精准
+            • 可同时分析多个股票
+            • 支持自定义参数优化
+            • 建议结合风险偏好使用
+            """)
+        
+        # 版权信息
+        st.markdown("---")
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 10px; color: #666;">
+            <small>
+            <strong>QuantGPT Pro v3.0</strong><br>
+            🚀 AI量化交易分析平台<br>
+            Powered by Streamlit & Advanced Analytics<br><br>
+            <em>仅供教育和研究用途，投资有风险</em>
+            </small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # 水印
+    st.markdown("""
+    <div class="watermark">
+        QuantGPT Pro © 2024
+    </div>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -1211,653 +1865,4 @@ class QuantGPTAnalyst:
                 "动量策略": "能够捕捉强势行情，但需要注意动量衰减的风险",
                 "突破策略": "适合捕捉关键突破点位，注意假突破的风险",
                 "网格交易": "适合区间震荡市场，在单边趋势中需要谨慎使用",
-                "量价策略": "成交量确认提高信号质量，但在低流动性市场中效果有限",
-                "波动率策略": "能够捕捉市场情绪变化，适合波动率交易专家",
-                "配对交易": "市场中性策略，适合对冲风险，需要深入的统计分析"
-            }
-            
-            if strategy in strategy_insights:
-                assessment += f"\n**📋 策略特色：** {strategy_insights[strategy]}\n"
-            
-            return assessment
-            
-        except (ValueError, KeyError) as e:
-            return f"\n### 🤖 QuantGPT AI 评估\n\n策略分析完成，请查看详细指标。如需更精准评估，请确保数据完整性。"
-
-# 高级图表生成器
-class ProfessionalChartGenerator:
-    @staticmethod
-    def create_comprehensive_chart(data, stock, strategy, params):
-        """创建专业综合分析图表"""
-        fig = make_subplots(
-            rows=5, cols=2,
-            shared_xaxes=True,
-            vertical_spacing=0.02,
-            horizontal_spacing=0.05,
-            subplot_titles=(
-                f'{stock} 价格走势与交易信号', '技术指标面板',
-                '策略收益 vs 基准', '风险指标监控',
-                '交易信号分布', '月度收益分析',
-                '回撤分析', '波动率分析',
-                '资金曲线', '绩效雷达图'
-            ),
-            specs=[[{"colspan": 2}, None],
-                   [{"colspan": 2}, None], 
-                   [{"colspan": 2}, None],
-                   [{}, {}],
-                   [{}, {}]],
-            row_heights=[0.3, 0.2, 0.2, 0.15, 0.15]
-        )
-        
-        # 1. 主价格图表
-        fig.add_trace(
-            go.Candlestick(
-                x=data.index,
-                open=data['Open'],
-                high=data['High'], 
-                low=data['Low'],
-                close=data['Close'],
-                name=f'{stock} K线',
-                increasing_line_color='#26a69a',
-                decreasing_line_color='#ef5350'
-            ), row=1, col=1
-        )
-        
-        # 添加移动平均线
-        if 'SMA_short' in data.columns:
-            fig.add_trace(
-                go.Scatter(x=data.index, y=data['SMA_short'], 
-                          name=f'SMA{params.get("short_window", 20)}',
-                          line=dict(color='orange', width=1.5)),
-                row=1, col=1
-            )
-        
-        if 'SMA_long' in data.columns:
-            fig.add_trace(
-                go.Scatter(x=data.index, y=data['SMA_long'],
-                          name=f'SMA{params.get("long_window", 50)}', 
-                          line=dict(color='blue', width=1.5)),
-                row=1, col=1
-            )
-        
-        # 交易信号
-        buy_signals = data[data['Position'] == 1]
-        sell_signals = data[data['Position'] == -1]
-        
-        if not buy_signals.empty:
-            fig.add_trace(
-                go.Scatter(x=buy_signals.index, y=buy_signals['Close'],
-                          mode='markers', name='买入信号',
-                          marker=dict(color='green', size=15, symbol='triangle-up')),
-                row=1, col=1
-            )
-        
-        if not sell_signals.empty:
-            fig.add_trace(
-                go.Scatter(x=sell_signals.index, y=sell_signals['Close'],
-                          mode='markers', name='卖出信号',
-                          marker=dict(color='red', size=15, symbol='triangle-down')),
-                row=1, col=1
-            )
-        
-        # 2. 技术指标
-        if 'RSI' in data.columns:
-            fig.add_trace(
-                go.Scatter(x=data.index, y=data['RSI'], name='RSI',
-                          line=dict(color='purple', width=2)),
-                row=2, col=1
-            )
-            fig.add_hline(y=70, row=2, col=1, line_dash="dash", line_color="red")
-            fig.add_hline(y=30, row=2, col=1, line_dash="dash", line_color="green")
-        
-        # 3. 收益对比
-        benchmark_return = (data['Cumulative_Returns'] - 1) * 100
-        strategy_return = (data['Strategy_Cumulative'] - 1) * 100
-        
-        fig.add_trace(
-            go.Scatter(x=data.index, y=benchmark_return,
-                      name='基准收益(%)', line=dict(color='gray', width=2)),
-            row=3, col=1
-        )
-        
-        fig.add_trace(
-            go.Scatter(x=data.index, y=strategy_return,
-                      name='策略收益(%)', line=dict(color='green', width=3)),
-            row=3, col=1
-        )
-        
-        # 4. 回撤分析
-        cumulative = data['Strategy_Cumulative']
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max * 100
-        
-        fig.add_trace(
-            go.Scatter(x=data.index, y=drawdown, name='策略回撤(%)',
-                      fill='tonexty', fillcolor='rgba(255,0,0,0.3)',
-                      line=dict(color='red', width=1)),
-            row=4, col=1
-        )
-        
-        # 5. 波动率分析
-        rolling_vol = data['Net_Strategy_Returns'].rolling(window=30).std() * np.sqrt(252) * 100
-        fig.add_trace(
-            go.Scatter(x=data.index, y=rolling_vol, name='30日滚动波动率(%)',
-                      line=dict(color='orange', width=2)),
-            row=4, col=2
-        )
-        
-        # 6. 资金曲线
-        fig.add_trace(
-            go.Scatter(x=data.index, y=data['Portfolio_Value'],
-                      name='资金曲线', line=dict(color='blue', width=2)),
-            row=5, col=1
-        )
-        
-        # 7. 月度收益热力图数据准备
-        monthly_returns = data['Net_Strategy_Returns'].resample('M').apply(lambda x: (1 + x).prod() - 1)
-        monthly_returns_pct = monthly_returns * 100
-        
-        if len(monthly_returns_pct) > 0:
-            fig.add_trace(
-                go.Bar(x=monthly_returns_pct.index, y=monthly_returns_pct.values,
-                      name='月度收益(%)', marker_color=monthly_returns_pct.apply(
-                          lambda x: 'green' if x > 0 else 'red')),
-                row=5, col=2
-            )
-        
-        # 更新布局
-        fig.update_layout(
-            height=1200,
-            title=f"{stock} - {strategy} 专业分析图表",
-            showlegend=True,
-            template="plotly_white",
-            font=dict(family="Inter, sans-serif"),
-            title_font_size=20,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom", 
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
-        )
-        
-        # 美化网格和坐标轴
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)')
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)')
-        
-        return fig
-    
-    @staticmethod
-    def create_strategy_comparison_chart(comparison_data):
-        """创建策略对比图表"""
-        strategies = list(comparison_data.keys())
-        metrics = ['总收益率', '夏普比率', '最大回撤', '胜率']
-        
-        fig = go.Figure()
-        
-        for metric in metrics:
-            values = []
-            for strategy in strategies:
-                try:
-                    value_str = comparison_data[strategy]['metrics'][metric]
-                    if '%' in value_str:
-                        value = float(value_str.replace('%', ''))
-                    else:
-                        value = float(value_str)
-                    values.append(value)
-                except:
-                    values.append(0)
-            
-            fig.add_trace(go.Scatterpolar(
-                r=values,
-                theta=strategies,
-                fill='toself',
-                name=metric
-            ))
-        
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(visible=True, range=[0, max([max(values) for values in [values]])]),
-            ),
-            showlegend=True,
-            title="策略性能雷达图对比"
-        )
-        
-        return fig
-
-# 消息显示组件
-def display_message(message, is_user=False, message_id=None):
-    """显示专业聊天消息"""
-    message_class = "user" if is_user else "bot"
-    avatar = "👤" if is_user else "🤖"
-    
-    # 打字机效果的占位符
-    if message_id and not is_user:
-        placeholder = st.empty()
-        
-        # 显示打字指示器
-        with placeholder.container():
-            st.markdown(f"""
-            <div class="chat-message bot">
-                <div class="avatar">{avatar}</div>
-                <div class="message">
-                    <div class="typing-indicator">
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        QuantGPT 正在分析中...
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # 模拟思考时间
-        time.sleep(1.5)
-        
-        # 显示实际消息
-        placeholder.empty()
-    
-    st.markdown(f"""
-    <div class="chat-message {message_class}">
-        <div class="avatar">{avatar}</div>
-        <div class="message">{message}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# 图表展示函数
-def show_professional_analysis_chart(stock):
-    """显示专业分析图表"""
-    if 'analysis_data' not in st.session_state or stock not in st.session_state.analysis_data:
-        st.error(f"没有 {stock} 的分析数据")
-        return
-    
-    analysis_info = st.session_state.analysis_data[stock]
-    data = analysis_info['data']
-    strategy = analysis_info['strategy']
-    params = analysis_info['params']
-    
-    # 创建专业图表
-    chart_generator = ProfessionalChartGenerator()
-    fig = chart_generator.create_comprehensive_chart(data, stock, strategy, params)
-    
-    # 在图表容器中显示
-    with st.container():
-        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # 显示详细统计数据
-    col1, col2, col3, col4 = st.columns(4)
-    
-    # 计算统计数据
-    total_trades = len(data[data['Position'] != 0])
-    winning_trades = len(data[(data['Position'] != 0) & (data['Net_Strategy_Returns'] > 0)])
-    final_return = (data['Strategy_Cumulative'].iloc[-1] - 1) * 100
-    max_dd = ((data['Strategy_Cumulative'] / data['Strategy_Cumulative'].expanding().max()) - 1).min() * 100
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{total_trades}</div>
-            <div class="metric-label">总交易次数</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{winning_trades}</div>
-            <div class="metric-label">盈利交易</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{final_return:.1f}%</div>
-            <div class="metric-label">总收益率</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{max_dd:.1f}%</div>
-            <div class="metric-label">最大回撤</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# 策略对比功能
-def show_strategy_comparison():
-    """显示策略对比功能"""
-    st.markdown("### 🔄 策略性能对比")
-    
-    if 'analysis_data' not in st.session_state or len(st.session_state.analysis_data) < 2:
-        st.info("需要至少分析2个策略才能进行对比")
-        return
-    
-    # 选择对比的策略
-    available_analyses = list(st.session_state.analysis_data.keys())
-    selected_strategies = st.multiselect(
-        "选择要对比的策略分析", 
-        available_analyses,
-        default=available_analyses[:2] if len(available_analyses) >= 2 else available_analyses
-    )
-    
-    if len(selected_strategies) >= 2:
-        comparison_data = {}
-        
-        for strategy_key in selected_strategies:
-            analysis_info = st.session_state.analysis_data[strategy_key]
-            data = analysis_info['data']
-            
-            # 计算对比指标
-            metrics = ProfessionalBacktestEngine.calculate_advanced_metrics(data)
-            comparison_data[strategy_key] = {
-                'data': data,
-                'metrics': metrics,
-                'strategy': analysis_info['strategy']
-            }
-        
-        # 创建对比表格
-        metrics_df = pd.DataFrame({
-            strategy: data['metrics'] for strategy, data in comparison_data.items()
-        })
-        
-        st.dataframe(metrics_df, use_container_width=True)
-        
-        # 创建雷达图对比
-        chart_generator = ProfessionalChartGenerator()
-        radar_fig = chart_generator.create_strategy_comparison_chart(comparison_data)
-        st.plotly_chart(radar_fig, use_container_width=True)
-
-# 主应用程序
-def main():
-    # 英雄区域
-    st.markdown("""
-    <div class="hero-section">
-        <h1 class="hero-title">QuantGPT Pro</h1>
-        <p class="hero-subtitle">🚀 下一代AI量化交易分析平台 | 专业级策略回测 | 智能风险管理</p>
-        <div class="quick-action-grid">
-            <div class="quick-action-card">
-                <h4>📊 智能策略分析</h4>
-                <p>8种专业策略，AI驱动优化</p>
-            </div>
-            <div class="quick-action-card">
-                <h4>⚡ 实时风险监控</h4>
-                <p>VaR模型，专业风控体系</p>
-            </div>
-            <div class="quick-action-card">
-                <h4>🎯 精准回测引擎</h4>
-                <p>考虑滑点手续费的真实回测</p>
-            </div>
-            <div class="quick-action-card">
-                <h4>🤖 AI量化顾问</h4>
-                <p>智能评级，个性化建议</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 系统状态指示器
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        status = "status-online" if YFINANCE_AVAILABLE else "status-offline"
-        status_text = "实时数据" if YFINANCE_AVAILABLE else "模拟数据"
-        st.markdown(f'<div class="status-indicator {status}">📡 {status_text}</div>', unsafe_allow_html=True)
-    
-    with col2:
-        ta_status = "status-online" if TA_AVAILABLE else "status-limited"
-        ta_text = "完整指标" if TA_AVAILABLE else "基础指标"
-        st.markdown(f'<div class="status-indicator {ta_status}">📈 {ta_text}</div>', unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown('<div class="status-indicator status-online">🛡️ 风控启用</div>', unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown('<div class="premium-badge">PRO版本</div>', unsafe_allow_html=True)
-    
-    # 聊天区域
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    
-    # 初始化会话状态
-    if "messages" not in st.session_state:
-        welcome_msg = """🎉 **欢迎来到 QuantGPT Pro！**
-
-我是您的专业AI量化交易顾问，具备以下核心能力：
-
-### 🎯 **专业策略库**
-• **趋势跟踪** - 多重均线确认系统
-• **均值回归** - 布林带+RSI双重过滤  
-• **动量策略** - RSI+MACD+随机指标三重确认
-• **突破策略** - 价量突破，关键点位捕捉
-• **网格交易** - ATR动态网格，智能仓位管理
-• **量价策略** - VWAP确认，提升信号质量
-• **波动率策略** - 波动率突破，情绪驱动交易
-• **配对交易** - 市场中性，统计套利
-
-### 🛡️ **专业风控体系**
-• **VaR风险模型** - 95%/99%置信区间风险评估
-• **动态止损止盈** - 智能风险控制
-• **仓位管理** - 凯利公式优化仓位
-• **回撤监控** - 实时最大回撤追踪
-
-### 📊 **高级分析工具**
-• **Sharpe/Sortino/Calmar比率** - 多维度风险调整收益
-• **专业图表** - K线+技术指标+资金曲线
-• **策略对比** - 雷达图多策略性能对比
-• **AI智能评级** - AAA-BB评级体系
-
-### 💡 **AI驱动建议**
-• **风险偏好匹配** - 保守/平衡/激进/专业型
-• **参数智能优化** - 自动寻优最佳参数组合
-• **实盘交易指导** - 具体仓位和止损建议
-
-**🚀 开始体验：**
-• `"分析AAPL的趋势策略"`
-• `"用保守型策略分析TSLA"`  
-• `"GOOGL的动量策略5%止损"`
-• `"对比MSFT的多种策略"`
-
-现在就告诉我您的投资需求，让我为您提供专业的量化分析！"""
-        
-        st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
-    
-    if "analyst" not in st.session_state:
-        st.session_state.analyst = QuantGPTAnalyst()
-    
-    # 显示聊天历史
-    for i, message in enumerate(st.session_state.messages):
-        display_message(message["content"], message["role"] == "user", f"msg_{i}")
-    
-    # 用户输入
-    user_input = st.chat_input("💬 请描述您的量化交易需求...", key="professional_input")
-    
-    if user_input:
-        # 添加用户消息
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        display_message(user_input, True)
-        
-        # 显示思考过程
-        thinking_placeholder = st.empty()
-        with thinking_placeholder.container():
-            st.markdown("""
-            <div class="chat-message bot">
-                <div class="avatar">🤖</div>
-                <div class="message">
-                    <div class="typing-indicator">
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        正在进行深度量化分析...
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # 处理用户输入
-        try:
-            time.sleep(2)  # 模拟AI思考时间
-            parsed_input = st.session_state.analyst.parse_user_input(user_input)
-            response = st.session_state.analyst.generate_intelligent_response(parsed_input)
-        except Exception as e:
-            response = f"😅 分析过程中遇到技术问题：{str(e)}\n\n请尝试重新描述您的需求，或联系技术支持。"
-        finally:
-            thinking_placeholder.empty()
-        
-        # 添加AI响应
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        display_message(response, False)
-        
-        # 如果有分析数据，显示高级功能
-        if 'analysis_data' in st.session_state and st.session_state.analysis_data:
-            st.markdown("---")
-            
-            # 图表分析区域
-            st.markdown("### 📊 专业图表分析")
-            chart_cols = st.columns(len(st.session_state.analysis_data))
-            
-            for i, stock in enumerate(st.session_state.analysis_data.keys()):
-                with chart_cols[i]:
-                    if st.button(f"📈 {stock} 专业分析", key=f"prof_chart_{stock}", use_container_width=True):
-                        show_professional_analysis_chart(stock)
-            
-            # 策略对比功能
-            if len(st.session_state.analysis_data) >= 2:
-                if st.button("🔄 策略性能对比", use_container_width=True):
-                    show_strategy_comparison()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # 侧边栏专业功能
-    with st.sidebar:
-        st.markdown("""
-        <div style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; color: white; margin-bottom: 1.5rem;">
-            <h3>🎛️ 专业控制面板</h3>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 快速清理
-        if st.button("🗑️ 清除分析历史", use_container_width=True):
-            st.session_state.messages = [st.session_state.messages[0]]
-            if 'analysis_data' in st.session_state:
-                del st.session_state.analysis_data
-            st.rerun()
-        
-        # 专业快速分析
-        st.markdown("### 🚀 专业快速分析")
-        
-        # 股票选择
-        popular_stocks = ["AAPL", "TSLA", "GOOGL", "MSFT", "NVDA", "AMZN", "META", "NFLX"]
-        selected_stock = st.selectbox("选择热门股票", popular_stocks)
-        
-        # 策略选择
-        all_strategies = ["趋势跟踪", "均值回归", "动量策略", "突破策略", "网格交易", "量价策略", "波动率策略", "配对交易"]
-        selected_strategy = st.selectbox("选择策略", all_strategies)
-        
-        # 风险偏好
-        risk_profiles = ["保守型", "平衡型", "激进型", "专业型"]
-        selected_risk = st.selectbox("风险偏好", risk_profiles)
-        
-        # 高级参数
-        with st.expander("⚙️ 高级参数设置"):
-            stop_loss = st.slider("止损百分比", 1, 10, 5) / 100
-            take_profit = st.slider("止盈百分比", 5, 20, 10) / 100
-            period = st.selectbox("分析周期", ["1mo", "3mo", "6mo", "1y", "2y"], index=4)
-        
-        if st.button("🎯 执行专业分析", use_container_width=True):
-            query = f"用{selected_risk}的{selected_strategy}分析{selected_stock}，设置{stop_loss*100:.0f}%止损和{take_profit*100:.0f}%止盈，分析周期{period}"
-            st.session_state.messages.append({"role": "user", "content": query})
-            
-            with st.spinner("🤖 AI正在执行深度分析..."):
-                parsed_input = st.session_state.analyst.parse_user_input(query)
-                response = st.session_state.analyst.generate_intelligent_response(parsed_input)
-            
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            st.rerun()
-        
-        # 示例策略库
-        with st.expander("💡 策略示例库"):
-            examples = [
-                "分析AAPL的趋势跟踪策略",
-                "TSLA的激进型动量策略分析",
-                "用5%止损分析GOOGL突破策略", 
-                "MSFT的保守型均值回归策略",
-                "NVDA的专业型量价策略回测",
-                "对比AMZN的多种策略表现"
-            ]
-            
-            for example in examples:
-                if st.button(example, key=f"ex_{hash(example)}", use_container_width=True):
-                    st.session_state.messages.append({"role": "user", "content": example})
-                    
-                    with st.spinner("分析中..."):
-                        parsed_input = st.session_state.analyst.parse_user_input(example)
-                        response = st.session_state.analyst.generate_intelligent_response(parsed_input)
-                    
-                    st.session_state.messages.append({"role": "assistant", "content": response})
-                    st.rerun()
-        
-        # 系统信息
-        st.markdown("---")
-        st.markdown("### 📋 系统信息")
-        
-        system_info = f"""
-        **数据源：** {'yfinance (实时)' if YFINANCE_AVAILABLE else '高质量模拟数据'}
-        **技术指标：** {'TA-Lib (完整)' if TA_AVAILABLE else '内置专业指标'}
-        **策略数量：** 8种专业策略
-        **风险模型：** VaR + 动态止损
-        **评级体系：** AAA-BB智能评级
-        """
-        st.markdown(system_info)
-        
-        # 帮助信息
-        with st.expander("❓ 使用指南"):
-            st.markdown("""
-            **🎯 支持的输入格式：**
-            • 股票代码：AAPL, TSLA, ^GSPC
-            • 策略指定：趋势、动量、突破等
-            • 风险偏好：保守型、激进型等
-            • 参数设置：5%止损、20日均线等
-            
-            **📊 高级功能：**
-            • 多策略对比分析
-            • 实时风险监控
-            • AI智能评级
-            • 专业图表展示
-            
-            **💡 使用技巧：**
-            • 描述越详细，分析越精准
-            • 可同时分析多个股票
-            • 支持自定义参数优化
-            • 建议结合风险偏好使用
-            """)
-        
-        # 版权信息
-        st.markdown("---")
-        st.markdown("""
-        <div style="text-align: center; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 10px; color: #666;">
-            <small>
-            <strong>QuantGPT Pro v3.0</strong><br>
-            🚀 AI量化交易分析平台<br>
-            Powered by Streamlit & Advanced Analytics<br><br>
-            <em>仅供教育和研究用途，投资有风险</em>
-            </small>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # 水印
-    st.markdown("""
-    <div class="watermark">
-        QuantGPT Pro © 2024
-    </div>
-    """, unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()
-                "
+                "量价策略": "
