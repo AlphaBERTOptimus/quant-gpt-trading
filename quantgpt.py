@@ -364,16 +364,16 @@ class StreamingAnalyzer:
         """Stream comparison analysis for two symbols"""
         yield {
             "type": "status",
-            "content": f"⚖️ Comparing {symbols[0]} vs {symbols[1]}..."
+            "content": f"⚖️ Starting comparison: {symbols[0]} vs {symbols[1]}"
         }
         
         analyses = {}
         
         # Analyze each symbol
-        for symbol in symbols:
+        for i, symbol in enumerate(symbols):
             yield {
                 "type": "status",
-                "content": f"📊 Analyzing {symbol}..."
+                "content": f"📊 Analyzing {symbol} ({i+1}/{len(symbols)})..."
             }
             
             try:
@@ -383,12 +383,17 @@ class StreamingAnalyzer:
                 
                 if data.empty:
                     yield {
-                        "type": "error",
-                        "content": f"❌ No data found for {symbol}"
+                        "type": "status",
+                        "content": f"⚠️ No data found for {symbol}, skipping..."
                     }
                     continue
                 
                 # Quick analysis for comparison
+                yield {
+                    "type": "status",
+                    "content": f"🔬 Computing indicators for {symbol}..."
+                }
+                
                 technical_data = self._calculate_technical_indicators(data)
                 fundamental_data = self._extract_fundamentals(info)
                 
@@ -401,14 +406,27 @@ class StreamingAnalyzer:
                     'change': ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
                 }
                 
+                yield {
+                    "type": "status",
+                    "content": f"✅ {symbol} analysis complete"
+                }
+                
             except Exception as e:
                 yield {
-                    "type": "error",
+                    "type": "status",
                     "content": f"❌ Failed to analyze {symbol}: {str(e)}"
                 }
                 continue
         
+        # Generate comparison results
         if len(analyses) >= 2:
+            yield {
+                "type": "status",
+                "content": "📋 Generating comparison report..."
+            }
+            
+            time.sleep(0.5)
+            
             yield {
                 "type": "comparison",
                 "content": {
@@ -416,10 +434,15 @@ class StreamingAnalyzer:
                     'analyses': analyses
                 }
             }
+            
+            yield {
+                "type": "complete",
+                "content": f"✅ Comparison complete: {' vs '.join(symbols)}"
+            }
         else:
             yield {
                 "type": "error",
-                "content": "❌ Need at least 2 valid symbols for comparison"
+                "content": "❌ Need at least 2 valid symbols for comparison. Please check the symbols and try again."
             }
         """Stream analysis results progressively"""
         
@@ -808,8 +831,8 @@ if not st.session_state.messages:
             st.rerun()
     
     with col2:
-        if st.button("🔍 Analyze GOOGL", key="q2"):
-            st.session_state.messages.append({"role": "user", "content": "GOOGL"})
+        if st.button("⚖️ Compare NVDA vs AAPL", key="q2"):
+            st.session_state.messages.append({"role": "user", "content": "compare NVDA and AAPL"})
             st.rerun()
     
     with col3:
@@ -818,8 +841,8 @@ if not st.session_state.messages:
             st.rerun()
     
     with col4:
-        if st.button("💎 Analyze NVDA", key="q4"):
-            st.session_state.messages.append({"role": "user", "content": "NVDA"})
+        if st.button("💎 Check MSFT", key="q4"):
+            st.session_state.messages.append({"role": "user", "content": "check MSFT"})
             st.rerun()
 
 # Display chat history
@@ -979,6 +1002,19 @@ if execute_btn and user_input.strip():
             result_content = f"""
 ## ⚖️ Comparison Analysis: {symbols[0]} vs {symbols[1]}
 
+### 📊 Overview
+"""
+            
+            # Add basic comparison info
+            for symbol in symbols:
+                if symbol in analyses:
+                    analysis = analyses[symbol]
+                    price_color = "#10B981" if analysis['change'] > 0 else "#EF4444"
+                    result_content += f"""
+**{symbol}** - {analysis["info"].get("longName", symbol)[:40]}
+- Price: ${analysis['price']:.2f} (<span style="color: {price_color}">{analysis['change']:+.2f}%</span>)
+- Sector: {analysis["info"].get("sector", "Unknown")}
+
 """
             
             # Create comparison table
@@ -988,16 +1024,46 @@ if execute_btn and user_input.strip():
                     analysis = analyses[symbol]
                     comp_data.append({
                         "Symbol": symbol,
-                        "Name": analysis["info"].get("longName", symbol)[:30],
+                        "Company": analysis["info"].get("longName", symbol)[:25] + "..." if len(analysis["info"].get("longName", symbol)) > 25 else analysis["info"].get("longName", symbol),
                         "Price": f"${analysis['price']:.2f}",
-                        "Change": f"{analysis['change']:+.2f}%",
-                        "P/E": f"{analysis['fundamental'].get('pe_ratio', 0):.1f}" if analysis['fundamental'].get('pe_ratio') else 'N/A',
+                        "Change %": f"{analysis['change']:+.2f}%",
+                        "P/E Ratio": f"{analysis['fundamental'].get('pe_ratio', 0):.1f}" if analysis['fundamental'].get('pe_ratio') else 'N/A',
                         "Market Cap": f"${(analysis['fundamental'].get('market_cap', 0) or 0)/1e9:.1f}B" if analysis['fundamental'].get('market_cap') else 'N/A',
-                        "RSI": f"{analysis['technical'].get('rsi', 0):.1f}" if analysis['technical'].get('rsi') else 'N/A'
+                        "RSI": f"{analysis['technical'].get('rsi', 0):.1f}" if analysis['technical'].get('rsi') else 'N/A',
+                        "ROE": f"{(analysis['fundamental'].get('roe', 0) or 0)*100:.1f}%" if analysis['fundamental'].get('roe') else 'N/A'
                     })
             
             if comp_data:
                 comparison_table = pd.DataFrame(comp_data)
+                
+            # Add simple comparison insights
+            if len(comp_data) == 2:
+                stock1, stock2 = comp_data[0], comp_data[1]
+                result_content += f"""
+### 🎯 Quick Comparison
+"""
+                
+                # Price comparison
+                price1 = float(stock1["Price"].replace("$", ""))
+                price2 = float(stock2["Price"].replace("$", ""))
+                if price1 > price2:
+                    result_content += f"- **Higher Price**: {stock1['Symbol']} (${price1:.2f}) vs {stock2['Symbol']} (${price2:.2f})\n"
+                else:
+                    result_content += f"- **Higher Price**: {stock2['Symbol']} (${price2:.2f}) vs {stock1['Symbol']} (${price1:.2f})\n"
+                
+                # Market cap comparison
+                if stock1["Market Cap"] != 'N/A' and stock2["Market Cap"] != 'N/A':
+                    cap1 = float(stock1["Market Cap"].replace("$", "").replace("B", ""))
+                    cap2 = float(stock2["Market Cap"].replace("$", "").replace("B", ""))
+                    larger_cap = stock1['Symbol'] if cap1 > cap2 else stock2['Symbol']
+                    result_content += f"- **Larger Market Cap**: {larger_cap}\n"
+                
+                # P/E comparison
+                if stock1["P/E Ratio"] != 'N/A' and stock2["P/E Ratio"] != 'N/A':
+                    pe1 = float(stock1["P/E Ratio"])
+                    pe2 = float(stock2["P/E Ratio"])
+                    lower_pe = stock1['Symbol'] if pe1 < pe2 else stock2['Symbol']
+                    result_content += f"- **Lower P/E (Better Value)**: {lower_pe}\n"
             
         elif update["type"] == "chart":
             chart_data = update["content"]
