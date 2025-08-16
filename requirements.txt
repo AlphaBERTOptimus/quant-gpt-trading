@@ -1,8 +1,29 @@
-streamlit>=1.29.0
-pandas>=2.0.0
-numpy>=1.24.0
-plotly>=5.17.0
-scikit-learn>=1.3.0
-scipy>=1.11.0
-yfinance>=0.2.18
-ta>=0.10.2
+# QuantGPT - AI量化金融平台依赖包
+# =====================================================
+
+# 核心数据科学包
+pandas>=1.5.0
+numpy>=1.21.0
+
+# 金融数据获取
+yfinance>=0.2.0
+
+# 机器学习和AI
+torch>=2.0.0
+transformers>=4.21.0
+
+# 可视化
+matplotlib>=3.5.0
+seaborn>=0.11.0
+plotly>=5.0.0
+
+# 数据处理和工具
+requests>=2.28.0
+
+# 可选：CUDA支持 (如果需要GPU加速)
+# torch-audio>=2.0.0  # 如果需要音频处理
+# torchvision>=0.15.0  # 如果需要视觉处理
+
+# 系统依赖 (通常已预装)
+# python>=3.8
+# typing_extensions>=4.0.0  # Python 3.8兼容性
