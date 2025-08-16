@@ -280,9 +280,15 @@ class CommandParser:
                         'ABOUT', 'GET', 'DATA', 'FOR', 'COMPARE', 'VS', 'VERSUS', 'AND', 
                         'WITH', 'AGAINST', 'STOCK', 'STOCKS', 'PRICE', 'CHART', 'INFO',
                         'INFORMATION', 'DETAILS', 'ANALYSIS', 'REPORT', 'THE', 'OF', 'IS',
-                        'ARE', 'WHAT', 'HOW', 'WHY', 'WHEN', 'WHERE', 'WHICH'}
+                        'ARE', 'WHAT', 'HOW', 'WHY', 'WHEN', 'WHERE', 'WHICH', 'SCREEN',
+                        'FIND', 'SEARCH', 'FILTER', 'LIST', 'HIGH', 'LOW', 'DIVIDEND',
+                        'GROWTH', 'VALUE', 'BLUE', 'CHIP'}
         
         symbols = [s for s in potential_symbols if s not in command_words]
+        
+        # Check for screening commands
+        if any(word in text for word in ['SCREEN', 'FIND', 'SEARCH', 'FILTER', 'LIST']):
+            return CommandParser._parse_screen_command(text)
         
         # Determine action type
         if any(word in text for word in ['COMPARE', 'VS', 'VERSUS', 'AGAINST']):
@@ -297,6 +303,77 @@ class CommandParser:
             'symbols': symbols[:5],  # Limit to 5 symbols max
             'original_text': text
         }
+    
+    @staticmethod
+    def _parse_screen_command(text: str) -> Dict:
+        """Parse screening commands"""
+        text = text.upper().strip()
+        
+        # Screen for specific criteria (PE < 20, ROE > 15%, etc.)
+        criteria_patterns = [
+            r'(PE|P/E)\s*([<>=])\s*(\d+(?:\.\d+)?)',
+            r'(PB|P/B)\s*([<>=])\s*(\d+(?:\.\d+)?)',
+            r'(ROE)\s*([<>=])\s*(\d+(?:\.\d+)?)',
+            r'(DEBT|DEBT/EQUITY|DEBT-TO-EQUITY)\s*([<>=])\s*(\d+(?:\.\d+)?)',
+            r'(DIVIDEND|DIV|YIELD)\s*([<>=])\s*(\d+(?:\.\d+)?)',
+            r'(MARKET\s*CAP|MCAP)\s*([<>=])\s*(\d+(?:\.\d+)?)',
+            r'(RSI)\s*([<>=])\s*(\d+(?:\.\d+)?)',
+            r'(PRICE)\s*([<>=])\s*(\d+(?:\.\d+)?)'
+        ]
+        
+        for pattern in criteria_patterns:
+            match = re.search(pattern, text)
+            if match:
+                indicator = match.group(1)
+                operator = match.group(2)
+                value = float(match.group(3))
+                
+                return {
+                    'action': 'screen',
+                    'type': 'custom',
+                    'indicator': indicator,
+                    'operator': operator,
+                    'value': value,
+                    'original_text': text
+                }
+        
+        # Screen for predefined categories
+        if any(word in text for word in ['DIVIDEND', 'DIV', 'HIGH DIVIDEND']):
+            return {
+                'action': 'screen',
+                'type': 'dividend',
+                'original_text': text
+            }
+        elif any(word in text for word in ['GROWTH', 'HIGH GROWTH']):
+            return {
+                'action': 'screen',
+                'type': 'growth',
+                'original_text': text
+            }
+        elif any(word in text for word in ['VALUE', 'UNDERVALUED', 'CHEAP']):
+            return {
+                'action': 'screen',
+                'type': 'value',
+                'original_text': text
+            }
+        elif any(word in text for word in ['BLUE CHIP', 'LARGE CAP', 'BIG CAP']):
+            return {
+                'action': 'screen',
+                'type': 'blue_chip',
+                'original_text': text
+            }
+        elif any(word in text for word in ['SMALL CAP', 'SMALLCAP']):
+            return {
+                'action': 'screen',
+                'type': 'small_cap',
+                'original_text': text
+            }
+        else:
+            return {
+                'action': 'screen',
+                'type': 'all',
+                'original_text': text
+            }
     
     @staticmethod
     def validate_symbol(symbol: str) -> bool:
@@ -356,6 +433,8 @@ class StreamingAnalyzer:
         # Route to appropriate analysis
         if parsed['action'] == 'compare' and len(valid_symbols) >= 2:
             yield from self.stream_comparison(valid_symbols[:2])
+        elif parsed['action'] == 'screen':
+            yield from self.stream_screening(parsed)
         else:
             # Single symbol analysis
             yield from self.stream_analysis(valid_symbols[0])
@@ -444,6 +523,240 @@ class StreamingAnalyzer:
                 "type": "error",
                 "content": "❌ Need at least 2 valid symbols for comparison. Please check the symbols and try again."
             }
+    
+    def stream_screening(self, criteria: Dict) -> Generator[Dict, None, None]:
+        """Stream stock screening results"""
+        yield {
+            "type": "status",
+            "content": f"🔍 Starting stock screening: {criteria.get('original_text', 'Custom criteria')}"
+        }
+        
+        # Extended US stock universe
+        stock_universe = [
+            # FAANG + Tech Giants
+            "AAPL", "GOOGL", "GOOG", "MSFT", "AMZN", "META", "TSLA", "NVDA", "NFLX", "ADBE",
+            "CRM", "ORCL", "IBM", "INTC", "AMD", "QCOM", "TXN", "NOW", "INTU", "MU",
+            
+            # Large Cap Blue Chips
+            "BRK-B", "UNH", "JNJ", "V", "JPM", "PG", "HD", "MA", "BAC", "ABBV",
+            "PFE", "KO", "PEP", "MRK", "COST", "WMT", "DIS", "VZ", "CMCSA", "XOM",
+            
+            # Financial Sector
+            "WFC", "GS", "MS", "C", "AXP", "BLK", "SPGI", "USB", "TFC", "PNC",
+            "COF", "SCHW", "CB", "MMC", "ICE", "CME", "AON", "TRV", "ALL", "PGR",
+            
+            # Healthcare & Pharma
+            "UNH", "JNJ", "PFE", "ABBV", "MRK", "TMO", "ABT", "LLY", "MDT", "BMY",
+            "AMGN", "GILD", "CVS", "CI", "ANTM", "HUM", "CNC", "MOH", "ELV", "VEEV",
+            
+            # Consumer & Retail
+            "WMT", "HD", "KO", "PEP", "MCD", "NKE", "SBUX", "TGT", "LOW", "TJX",
+            "COST", "CVX", "PM", "UL", "CL", "KMB", "GIS", "K", "HSY", "CLX",
+            
+            # Industrial & Manufacturing
+            "BA", "CAT", "HON", "UPS", "GE", "LMT", "MMM", "RTX", "DE", "FDX",
+            "EMR", "ETN", "ITW", "PH", "ROK", "DOV", "XYL", "IR", "OTIS", "CARR",
+            
+            # Energy & Utilities
+            "XOM", "CVX", "COP", "EOG", "SLB", "KMI", "OXY", "VLO", "PSX", "MPC",
+            "NEE", "DUK", "SO", "D", "AEP", "EXC", "XEL", "SRE", "PEG", "ES",
+            
+            # REITs & Real Estate
+            "AMT", "PLD", "CCI", "EQIX", "PSA", "WELL", "EXR", "AVB", "EQR", "SPG",
+            "O", "STOR", "NNN", "ADC", "FRT", "BXP", "VTR", "HCP", "UDR", "ESS",
+            
+            # Communication Services
+            "T", "VZ", "TMUS", "CHTR", "CMCSA", "DIS", "NFLX", "GOOGL", "META", "SNAP",
+            
+            # Materials & Mining
+            "LIN", "APD", "ECL", "SHW", "FCX", "NEM", "GOLD", "AEM", "KGC", "AU",
+            
+            # Small/Mid Cap Growth
+            "ROKU", "ZM", "DOCU", "SNOW", "PLTR", "RBLX", "U", "NET", "CRWD", "ZS",
+            "OKTA", "TWLO", "DDOG", "MDB", "ESTC", "FSLY", "CFLT", "S", "WORK", "TEAM"
+        ]
+        
+        yield {
+            "type": "status",
+            "content": f"📊 Screening {len(stock_universe)} stocks..."
+        }
+        
+        results = []
+        processed = 0
+        
+        for symbol in stock_universe:
+            try:
+                processed += 1
+                if processed % 20 == 0:  # Update progress every 20 stocks
+                    yield {
+                        "type": "status",
+                        "content": f"🔄 Progress: {processed}/{len(stock_universe)} stocks analyzed..."
+                    }
+                
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period="1y")
+                info = ticker.info
+                
+                if data.empty:
+                    continue
+                
+                # Quick analysis
+                technical_data = self._calculate_technical_indicators(data)
+                fundamental_data = self._extract_fundamentals(info)
+                
+                stock_data = {
+                    'symbol': symbol,
+                    'name': info.get('longName', symbol)[:30],
+                    'sector': info.get('sector', 'Unknown')[:20],
+                    'price': data['Close'].iloc[-1],
+                    'change': ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0,
+                    'pe_ratio': fundamental_data.get('pe_ratio'),
+                    'pb_ratio': fundamental_data.get('pb_ratio'),
+                    'roe': fundamental_data.get('roe'),
+                    'debt_to_equity': fundamental_data.get('debt_to_equity'),
+                    'dividend_yield': fundamental_data.get('dividend_yield'),
+                    'market_cap': fundamental_data.get('market_cap'),
+                    'rsi': technical_data.get('rsi'),
+                    'revenue_growth': fundamental_data.get('revenue_growth'),
+                    'beta': fundamental_data.get('beta')
+                }
+                
+                # Apply screening criteria
+                if self._meets_criteria(stock_data, criteria):
+                    results.append(stock_data)
+                    
+            except Exception:
+                continue  # Skip problematic stocks
+        
+        # Sort results based on criteria
+        results = self._sort_screening_results(results, criteria)
+        
+        yield {
+            "type": "status",
+            "content": f"✅ Screening complete! Found {len(results)} matching stocks"
+        }
+        
+        yield {
+            "type": "screening",
+            "content": {
+                'criteria': criteria,
+                'results': results,
+                'total_screened': len(stock_universe),
+                'matches_found': len(results)
+            }
+        }
+        
+        yield {
+            "type": "complete",
+            "content": f"🎯 Screening complete: {len(results)} stocks match your criteria"
+        }
+    
+    def _meets_criteria(self, stock_data: Dict, criteria: Dict) -> bool:
+        """Check if stock meets screening criteria"""
+        criteria_type = criteria.get('type', 'all')
+        
+        if criteria_type == 'custom':
+            indicator = criteria.get('indicator', '').upper()
+            operator = criteria.get('operator', '>')
+            value = criteria.get('value', 0)
+            
+            if indicator in ['PE', 'P/E']:
+                pe = stock_data.get('pe_ratio')
+                if pe is None or pe <= 0:
+                    return False
+                if operator == '<': return pe < value
+                elif operator == '>': return pe > value
+                elif operator == '=': return abs(pe - value) < 0.5
+                
+            elif indicator in ['PB', 'P/B']:
+                pb = stock_data.get('pb_ratio')
+                if pb is None or pb <= 0:
+                    return False
+                if operator == '<': return pb < value
+                elif operator == '>': return pb > value
+                elif operator == '=': return abs(pb - value) < 0.1
+                
+            elif indicator == 'ROE':
+                roe = stock_data.get('roe')
+                if roe is None:
+                    return False
+                roe_percent = roe * 100
+                if operator == '<': return roe_percent < value
+                elif operator == '>': return roe_percent > value
+                elif operator == '=': return abs(roe_percent - value) < 1
+                
+            elif indicator in ['DEBT', 'DEBT/EQUITY', 'DEBT-TO-EQUITY']:
+                debt_eq = stock_data.get('debt_to_equity')
+                if debt_eq is None:
+                    return False
+                if operator == '<': return debt_eq < value
+                elif operator == '>': return debt_eq > value
+                elif operator == '=': return abs(debt_eq - value) < 0.1
+                
+            elif indicator in ['DIVIDEND', 'DIV', 'YIELD']:
+                div_yield = stock_data.get('dividend_yield')
+                if div_yield is None:
+                    return False
+                div_percent = div_yield * 100
+                if operator == '<': return div_percent < value
+                elif operator == '>': return div_percent > value
+                elif operator == '=': return abs(div_percent - value) < 0.1
+                
+            elif indicator == 'RSI':
+                rsi = stock_data.get('rsi')
+                if rsi is None:
+                    return False
+                if operator == '<': return rsi < value
+                elif operator == '>': return rsi > value
+                elif operator == '=': return abs(rsi - value) < 2
+                
+            elif indicator == 'PRICE':
+                price = stock_data.get('price')
+                if price is None:
+                    return False
+                if operator == '<': return price < value
+                elif operator == '>': return price > value
+                elif operator == '=': return abs(price - value) < 1
+        
+        elif criteria_type == 'dividend':
+            div_yield = stock_data.get('dividend_yield')
+            return div_yield and div_yield > 0.03  # > 3%
+            
+        elif criteria_type == 'growth':
+            revenue_growth = stock_data.get('revenue_growth')
+            roe = stock_data.get('roe')
+            return (revenue_growth and revenue_growth > 0.15) or (roe and roe > 0.2)
+            
+        elif criteria_type == 'value':
+            pe = stock_data.get('pe_ratio')
+            pb = stock_data.get('pb_ratio')
+            return (pe and 5 < pe < 20) and (pb and pb < 3)
+            
+        elif criteria_type == 'blue_chip':
+            market_cap = stock_data.get('market_cap')
+            return market_cap and market_cap > 10e9  # > $10B
+            
+        elif criteria_type == 'small_cap':
+            market_cap = stock_data.get('market_cap')
+            return market_cap and market_cap < 2e9  # < $2B
+        
+        return True  # 'all' type
+    
+    def _sort_screening_results(self, results: List[Dict], criteria: Dict) -> List[Dict]:
+        """Sort screening results based on criteria"""
+        criteria_type = criteria.get('type', 'all')
+        
+        if criteria_type == 'dividend':
+            return sorted(results, key=lambda x: x.get('dividend_yield', 0) or 0, reverse=True)
+        elif criteria_type == 'growth':
+            return sorted(results, key=lambda x: x.get('revenue_growth', 0) or 0, reverse=True)
+        elif criteria_type == 'value':
+            return sorted(results, key=lambda x: x.get('pe_ratio', 999) or 999)
+        elif criteria_type == 'blue_chip' or criteria_type == 'small_cap':
+            return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
+        else:
+            # Custom or default sort by market cap
+            return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
         """Stream analysis results progressively"""
         
     def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
@@ -831,19 +1144,127 @@ if not st.session_state.messages:
             st.rerun()
     
     with col2:
-        if st.button("⚖️ Compare NVDA vs AAPL", key="q2"):
-            st.session_state.messages.append({"role": "user", "content": "compare NVDA and AAPL"})
+        if st.button("🔍 Screen PE < 20", key="q2"):
+            st.session_state.messages.append({"role": "user", "content": "screen PE < 20"})
             st.rerun()
     
     with col3:
-        if st.button("⚡ Analyze TSLA", key="q3"):
-            st.session_state.messages.append({"role": "user", "content": "TSLA"})
+        if st.button("⚖️ Compare NVDA vs AAPL", key="q3"):
+            st.session_state.messages.append({"role": "user", "content": "compare NVDA and AAPL"})
             st.rerun()
     
     with col4:
-        if st.button("💎 Check MSFT", key="q4"):
-            st.session_state.messages.append({"role": "user", "content": "check MSFT"})
+        if st.button("💰 Find Dividend Stocks", key="q4"):
+            st.session_state.messages.append({"role": "user", "content": "find dividend stocks"})
             st.rerun()
+    
+    # Advanced Examples Section
+    st.markdown("### 🎯 Advanced Screening Examples")
+    
+    adv_col1, adv_col2 = st.columns(2)
+    
+    with adv_col1:
+        st.markdown("**📈 Technical Screening:**")
+        if st.button("🔴 RSI Oversold (< 30)", key="adv1"):
+            st.session_state.messages.append({"role": "user", "content": "screen RSI < 30"})
+            st.rerun()
+        if st.button("💎 Value Stocks (PE < 15)", key="adv2"):
+            st.session_state.messages.append({"role": "user", "content": "screen PE < 15"})
+            st.rerun()
+        if st.button("🏦 Low Debt (< 0.3)", key="adv3"):
+            st.session_state.messages.append({"role": "user", "content": "screen debt < 0.3"})
+            st.rerun()
+    
+    with adv_col2:
+        st.markdown("**🎲 Category Screening:**")
+        if st.button("🌟 Growth Stocks", key="adv4"):
+            st.session_state.messages.append({"role": "user", "content": "find growth stocks"})
+            st.rerun()
+        if st.button("🔷 Blue Chip Stocks", key="adv5"):
+            st.session_state.messages.append({"role": "user", "content": "find blue chip stocks"})
+            st.rerun()
+        if st.button("🚀 Small Cap Stocks", key="adv6"):
+            st.session_state.messages.append({"role": "user", "content": "find small cap stocks"})
+            st.rerun()
+    
+    # Command Examples
+    st.markdown("### 📚 Command Examples")
+    
+    with st.expander("🔍 Screening Commands", expanded=True):
+        st.markdown("""
+        **Basic Screening:**
+        - `screen PE < 20` - Find stocks with P/E ratio below 20
+        - `screen PB < 2` - Find stocks with P/B ratio below 2
+        - `screen ROE > 15` - Find stocks with ROE above 15%
+        - `screen dividend > 4` - Find stocks with dividend yield above 4%
+        
+        **Technical Screening:**
+        - `screen RSI < 30` - Find oversold stocks
+        - `screen RSI > 70` - Find overbought stocks
+        - `screen price < 50` - Find stocks under $50
+        
+        **Category Screening:**
+        - `find dividend stocks` - High dividend yield stocks
+        - `find value stocks` - Undervalued stocks
+        - `find growth stocks` - High growth potential
+        - `find blue chip stocks` - Large cap stable companies
+        """)
+    
+    with st.expander("📊 Analysis Commands"):
+        st.markdown("""
+        **Single Stock Analysis:**
+        - `AAPL` or `analyze AAPL` - Comprehensive analysis
+        - `check NVDA` - Quick check
+        - `look at TSLA` - Detailed view
+        
+        **Stock Comparison:**
+        - `compare AAPL and GOOGL` - Side by side comparison
+        - `NVDA vs TSLA` - Quick comparison
+        - `MSFT versus AMZN` - Detailed comparison
+        """)
+        
+    with st.expander("🎯 Pro Tips"):
+        st.markdown("""
+        **Advanced Usage:**
+        - Use operators: `<`, `>`, `=` for precise screening
+        - Combine criteria: Screen first, then analyze individual stocks
+        - Compare similar stocks: Find stocks in same sector, then compare
+        
+        **Best Practices:**
+        - Start with broad screening, then narrow down
+        - Always verify with fundamental analysis
+        - Consider multiple timeframes for technical analysis
+        - Use comparison for final investment decisions
+        """)
+    
+    # Market Insights
+    st.markdown("### 📈 Market Quick Insights")
+    
+    insight_col1, insight_col2, insight_col3 = st.columns(3)
+    
+    with insight_col1:
+        st.markdown("""
+        <div class="metric-card">
+            <div class="metric-value">📊</div>
+            <div class="metric-label">150+ STOCKS TRACKED</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with insight_col2:
+        st.markdown("""
+        <div class="metric-card">
+            <div class="metric-value">🔍</div>
+            <div class="metric-label">8+ SCREENING CRITERIA</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with insight_col3:
+        st.markdown("""
+        <div class="metric-card">
+            <div class="metric-value">⚡</div>
+            <div class="metric-label">REAL-TIME ANALYSIS</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Display chat history
 for message in st.session_state.messages:
@@ -889,7 +1310,7 @@ col1, col2, col3 = st.columns([6, 1, 1])
 with col1:
     user_input = st.text_input(
         "Command",
-        placeholder="Enter commands like: AAPL, GOOGL, compare NVDA and TSLA, check MSFT...",
+        placeholder="Examples: AAPL, compare NVDA and AAPL, screen PE < 20, find dividend stocks...",
         key="terminal_input",
         label_visibility="collapsed"
     )
@@ -1064,6 +1485,50 @@ if execute_btn and user_input.strip():
                     pe2 = float(stock2["P/E Ratio"])
                     lower_pe = stock1['Symbol'] if pe1 < pe2 else stock2['Symbol']
                     result_content += f"- **Lower P/E (Better Value)**: {lower_pe}\n"
+        
+        elif update["type"] == "screening":
+            screen = update["content"]
+            criteria = screen["criteria"]
+            results = screen["results"]
+            total_screened = screen["total_screened"]
+            matches_found = screen["matches_found"]
+            
+            result_content = f"""
+## 🔍 Stock Screening Results
+
+### 📊 Screening Summary
+- **Criteria**: {criteria.get('original_text', 'Custom screening')}
+- **Stocks Screened**: {total_screened}
+- **Matches Found**: {matches_found}
+
+### 📋 Top Results
+"""
+            
+            if results:
+                # Create screening results table
+                screen_data = []
+                for i, stock in enumerate(results[:25]):  # Show top 25 results
+                    screen_data.append({
+                        "Rank": i + 1,
+                        "Symbol": stock['symbol'],
+                        "Company": stock.get('name', stock['symbol'])[:25],
+                        "Sector": stock.get('sector', 'Unknown')[:15],
+                        "Price": f"${stock.get('price', 0):.2f}",
+                        "Change %": f"{stock.get('change', 0):+.2f}%",
+                        "P/E": f"{stock.get('pe_ratio', 0):.1f}" if stock.get('pe_ratio') and stock.get('pe_ratio') > 0 else 'N/A',
+                        "P/B": f"{stock.get('pb_ratio', 0):.1f}" if stock.get('pb_ratio') and stock.get('pb_ratio') > 0 else 'N/A',
+                        "ROE": f"{(stock.get('roe', 0) or 0)*100:.1f}%" if stock.get('roe') else 'N/A',
+                        "Div %": f"{(stock.get('dividend_yield', 0) or 0)*100:.1f}%" if stock.get('dividend_yield') else 'N/A',
+                        "Market Cap": f"${(stock.get('market_cap', 0) or 0)/1e9:.1f}B" if stock.get('market_cap') else 'N/A',
+                        "RSI": f"{stock.get('rsi', 0):.0f}" if stock.get('rsi') else 'N/A'
+                    })
+                
+                comparison_table = pd.DataFrame(screen_data)
+                
+                if matches_found > 25:
+                    result_content += f"\n*Showing top 25 results out of {matches_found} matches*\n"
+            else:
+                result_content += "\n❌ No stocks found matching your criteria. Try adjusting the parameters.\n"
             
         elif update["type"] == "chart":
             chart_data = update["content"]
@@ -1108,10 +1573,25 @@ if execute_btn and user_input.strip():
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: var(--text-secondary); padding: 2rem; font-family: "Inter", sans-serif;'>
-    <p><strong>📈 US Stock Terminal Pro v1.0</strong></p>
-    <p>Real-time Market Analysis • Professional Trading Intelligence • AI-Powered Insights</p>
-    <p style="font-size: 0.75rem; margin-top: 1rem;">
-        ⚠️ For educational and research purposes only. Not financial advice.
+    <p><strong>📈 US Stock Terminal Pro v2.0</strong></p>
+    <p>Advanced Stock Screening • Real-time Analysis • AI-Powered Insights • Professional Comparison Tools</p>
+    
+    <div style='margin: 1.5rem 0; display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;'>
+        <span>🔍 <strong>150+</strong> Stocks</span>
+        <span>📊 <strong>8+</strong> Screening Criteria</span>
+        <span>⚡ <strong>Real-time</strong> Data</span>
+        <span>🤖 <strong>AI</strong> Analysis</span>
+    </div>
+    
+    <div style='margin: 1rem 0; font-size: 0.8rem;'>
+        <strong>Supported Commands:</strong><br/>
+        Analysis: <code>AAPL</code>, <code>analyze NVDA</code> | 
+        Comparison: <code>compare AAPL vs GOOGL</code> | 
+        Screening: <code>screen PE &lt; 20</code>, <code>find dividend stocks</code>
+    </div>
+    
+    <p style="font-size: 0.75rem; margin-top: 1.5rem; opacity: 0.7;">
+        ⚠️ For educational and research purposes only. Not financial advice. Always do your own research.
     </p>
 </div>
 """, unsafe_allow_html=True)
