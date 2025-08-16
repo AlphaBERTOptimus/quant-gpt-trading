@@ -25,23 +25,25 @@ warnings.filterwarnings('ignore')
 
 # 页面配置
 st.set_page_config(
-    page_title="QuantGPT Pro - Professional Trading Platform",
-    page_icon="⚡",
+    page_title="QuantGPT Pro - AI Quantitative Trading Platform",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 专业黑白灰CSS样式
+# OpenQuant风格CSS
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
-    /* 全局样式重置 */
+    /* 全局重置 */
     .main > div {
         padding: 0;
-        background: #0F1419;
-        color: #E8E8E8;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    .stApp {
+        background: #FAFBFC;
     }
     
     /* 隐藏Streamlit默认元素 */
@@ -49,101 +51,172 @@ st.markdown("""
         background: transparent;
     }
     
-    .stApp {
-        background: linear-gradient(135deg, #0F1419 0%, #1A1F2E 100%);
-    }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     
-    /* 专业头部 */
-    .professional-header {
-        background: linear-gradient(90deg, #1A1F2E 0%, #2D3748 100%);
-        padding: 1.5rem 2rem;
-        border-bottom: 1px solid #4A5568;
-        margin-bottom: 0;
-    }
-    
-    .header-title {
-        font-family: 'Roboto Mono', monospace;
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #FFFFFF;
-        margin: 0;
-        letter-spacing: -0.02em;
-    }
-    
-    .header-subtitle {
-        font-size: 0.95rem;
-        color: #A0AEC0;
-        margin: 0.5rem 0 0 0;
-        font-weight: 400;
-    }
-    
-    /* 状态栏 */
-    .status-bar {
-        background: #2D3748;
-        padding: 0.8rem 2rem;
-        border-bottom: 1px solid #4A5568;
+    /* 顶部导航栏 */
+    .top-nav {
+        background: white;
+        padding: 1rem 2rem;
+        border-bottom: 1px solid #E5E7EB;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        position: sticky;
+        top: 0;
+        z-index: 1000;
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
     
-    .status-indicator {
+    .logo-section {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .logo {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1F2937;
+        text-decoration: none;
+    }
+    
+    .logo-subtitle {
+        font-size: 0.875rem;
+        color: #6B7280;
+        font-weight: 500;
+    }
+    
+    .nav-status {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+    
+    .status-badge {
         display: inline-flex;
         align-items: center;
-        padding: 0.4rem 0.8rem;
-        border-radius: 4px;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 6px;
         font-size: 0.75rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-family: 'Roboto Mono', monospace;
+        letter-spacing: 0.05em;
     }
     
     .status-online {
-        background: rgba(72, 187, 120, 0.1);
-        color: #48BB78;
-        border: 1px solid rgba(72, 187, 120, 0.2);
+        background: #DCFCE7;
+        color: #15803D;
     }
     
     .status-offline {
-        background: rgba(245, 101, 101, 0.1);
-        color: #F56565;
-        border: 1px solid rgba(245, 101, 101, 0.2);
+        background: #FEE2E2;
+        color: #DC2626;
     }
     
     .status-warning {
-        background: rgba(237, 137, 54, 0.1);
-        color: #ED8936;
-        border: 1px solid rgba(237, 137, 54, 0.2);
+        background: #FEF3C7;
+        color: #D97706;
     }
     
     /* 主要内容区域 */
-    .main-content {
-        padding: 2rem;
+    .main-container {
         max-width: 1200px;
         margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    /* 英雄区域 */
+    .hero-section {
+        background: white;
+        border-radius: 12px;
+        padding: 3rem 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        border: 1px solid #E5E7EB;
+    }
+    
+    .hero-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1F2937;
+        margin-bottom: 1rem;
+        line-height: 1.2;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.125rem;
+        color: #6B7280;
+        margin-bottom: 2rem;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+        line-height: 1.6;
+    }
+    
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+    
+    .feature-card {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.2s ease;
+    }
+    
+    .feature-card:hover {
+        border-color: #CBD5E1;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .feature-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .feature-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1F2937;
+        margin-bottom: 0.5rem;
+    }
+    
+    .feature-desc {
+        font-size: 0.875rem;
+        color: #6B7280;
+        line-height: 1.5;
     }
     
     /* 聊天界面 */
     .chat-container {
-        background: #1A202C;
-        border: 1px solid #4A5568;
-        border-radius: 8px;
-        padding: 0;
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         margin-bottom: 2rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
     }
     
     .chat-header {
-        background: #2D3748;
+        background: #F9FAFB;
+        border-bottom: 1px solid #E5E7EB;
         padding: 1rem 1.5rem;
-        border-bottom: 1px solid #4A5568;
-        font-family: 'Roboto Mono', monospace;
-        font-size: 0.85rem;
         font-weight: 600;
-        color: #E2E8F0;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        color: #1F2937;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
     
     .chat-messages {
@@ -155,117 +228,136 @@ st.markdown("""
     
     .message {
         margin-bottom: 1.5rem;
-        padding: 1rem;
-        border-radius: 6px;
-        border-left: 3px solid;
+        max-width: 100%;
+    }
+    
+    .message.user {
+        display: flex;
+        justify-content: flex-end;
+    }
+    
+    .message.assistant {
+        display: flex;
+        justify-content: flex-start;
+    }
+    
+    .message-content {
+        max-width: 80%;
+        padding: 1rem 1.25rem;
+        border-radius: 12px;
         font-size: 0.9rem;
         line-height: 1.6;
     }
     
-    .message.user {
-        background: rgba(66, 153, 225, 0.1);
-        border-left-color: #4299E1;
-        color: #E2E8F0;
-        margin-left: 2rem;
+    .message.user .message-content {
+        background: #3B82F6;
+        color: white;
+        border-bottom-right-radius: 4px;
     }
     
-    .message.assistant {
-        background: rgba(72, 187, 120, 0.1);
-        border-left-color: #48BB78;
-        color: #E2E8F0;
-        margin-right: 2rem;
+    .message.assistant .message-content {
+        background: #F3F4F6;
+        color: #1F2937;
+        border-bottom-left-radius: 4px;
+        border: 1px solid #E5E7EB;
     }
     
-    .message-header {
-        font-family: 'Roboto Mono', monospace;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.5rem;
-        opacity: 0.7;
+    .message-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        margin: 0 12px;
+        flex-shrink: 0;
     }
     
-    /* 输入框样式 */
+    .user-avatar {
+        background: #3B82F6;
+        color: white;
+    }
+    
+    .assistant-avatar {
+        background: #10B981;
+        color: white;
+    }
+    
+    /* 输入框 */
     .stChatInput > div > div > div > div {
-        background: #2D3748 !important;
-        border: 1px solid #4A5568 !important;
-        border-radius: 6px !important;
-        color: #E2E8F0 !important;
+        border: 1px solid #D1D5DB !important;
+        border-radius: 8px !important;
+        background: white !important;
     }
     
-    .stChatInput > div > div > div > div > div > textarea {
-        background: transparent !important;
-        color: #E2E8F0 !important;
-        font-family: 'Inter', sans-serif !important;
+    .stChatInput > div > div > div > div:focus-within {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
     }
     
     /* 按钮样式 */
     .stButton > button {
-        background: #4A5568;
-        color: #E2E8F0;
-        border: 1px solid #718096;
-        border-radius: 6px;
-        padding: 0.5rem 1rem;
-        font-family: 'Inter', sans-serif;
+        background: #3B82F6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.625rem 1.25rem;
         font-weight: 500;
+        font-size: 0.875rem;
         transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
     
     .stButton > button:hover {
-        background: #718096;
-        border-color: #A0AEC0;
+        background: #2563EB;
         transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
-    .primary-button {
-        background: #4299E1 !important;
-        color: white !important;
-        border: 1px solid #3182CE !important;
+    .secondary-button {
+        background: white !important;
+        color: #374151 !important;
+        border: 1px solid #D1D5DB !important;
     }
     
-    .primary-button:hover {
-        background: #3182CE !important;
-        border-color: #2B6CB0 !important;
+    .secondary-button:hover {
+        background: #F9FAFB !important;
+        border-color: #9CA3AF !important;
     }
     
-    /* 侧边栏样式 */
+    /* 侧边栏 */
     .sidebar .block-container {
-        background: #1A202C;
-        border-right: 1px solid #4A5568;
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #E5E7EB;
         padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
     
     .sidebar-section {
-        background: #2D3748;
-        border: 1px solid #4A5568;
-        border-radius: 6px;
-        padding: 1rem;
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
     }
     
     .sidebar-title {
-        font-family: 'Roboto Mono', monospace;
-        font-size: 0.8rem;
+        font-size: 0.875rem;
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #E2E8F0;
+        color: #1F2937;
         margin-bottom: 1rem;
-        border-bottom: 1px solid #4A5568;
-        padding-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
     
-    /* 选择框样式 */
+    /* 选择框 */
     .stSelectbox > div > div {
-        background: #4A5568 !important;
-        border: 1px solid #718096 !important;
-        border-radius: 6px !important;
-        color: #E2E8F0 !important;
+        border: 1px solid #D1D5DB !important;
+        border-radius: 8px !important;
+        background: white !important;
     }
     
     /* 指标卡片 */
-    .metric-grid {
+    .metrics-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1rem;
@@ -273,70 +365,153 @@ st.markdown("""
     }
     
     .metric-card {
-        background: #2D3748;
-        border: 1px solid #4A5568;
-        border-radius: 6px;
-        padding: 1rem;
+        background: white;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 1.25rem;
         text-align: center;
+        transition: all 0.2s ease;
+    }
+    
+    .metric-card:hover {
+        border-color: #CBD5E1;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
     
     .metric-value {
-        font-family: 'Roboto Mono', monospace;
-        font-size: 1.8rem;
+        font-size: 1.875rem;
         font-weight: 700;
-        color: #48BB78;
-        margin-bottom: 0.5rem;
+        color: #1F2937;
+        margin-bottom: 0.25rem;
     }
     
     .metric-label {
         font-size: 0.75rem;
-        font-weight: 600;
+        font-weight: 500;
+        color: #6B7280;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #A0AEC0;
+        letter-spacing: 0.05em;
+    }
+    
+    .metric-positive {
+        color: #10B981;
+    }
+    
+    .metric-negative {
+        color: #EF4444;
     }
     
     /* 图表容器 */
     .chart-container {
-        background: #1A202C;
-        border: 1px solid #4A5568;
-        border-radius: 8px;
+        background: white;
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
         padding: 1.5rem;
         margin: 1rem 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .chart-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1F2937;
+        margin-bottom: 1rem;
+    }
+    
+    /* 结果卡片 */
+    .result-card {
+        background: white;
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .result-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #E5E7EB;
+    }
+    
+    .result-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1F2937;
+    }
+    
+    .result-badge {
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .badge-success {
+        background: #DCFCE7;
+        color: #15803D;
+    }
+    
+    .badge-warning {
+        background: #FEF3C7;
+        color: #D97706;
+    }
+    
+    .badge-error {
+        background: #FEE2E2;
+        color: #DC2626;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .main-container {
+            padding: 1rem;
+        }
+        
+        .top-nav {
+            padding: 1rem;
+        }
+        
+        .hero-section {
+            padding: 2rem 1rem;
+        }
+        
+        .hero-title {
+            font-size: 2rem;
+        }
+        
+        .feature-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .message-content {
+            max-width: 90%;
+        }
     }
     
     /* 滚动条样式 */
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
     }
     
     ::-webkit-scrollbar-track {
-        background: #2D3748;
+        background: #F1F5F9;
     }
     
     ::-webkit-scrollbar-thumb {
-        background: #4A5568;
-        border-radius: 4px;
+        background: #CBD5E1;
+        border-radius: 3px;
     }
     
     ::-webkit-scrollbar-thumb:hover {
-        background: #718096;
-    }
-    
-    /* 响应式 */
-    @media (max-width: 768px) {
-        .main-content {
-            padding: 1rem;
-        }
-        
-        .professional-header {
-            padding: 1rem;
-        }
-        
-        .header-title {
-            font-size: 1.8rem;
-        }
+        background: #94A3B8;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -345,103 +520,127 @@ st.markdown("""
 LANGUAGES = {
     "中文": {
         "title": "QuantGPT Pro",
-        "subtitle": "专业量化交易分析平台",
-        "chat_header": "AI 量化分析师",
+        "subtitle": "专业AI量化交易分析平台",
+        "hero_title": "智能量化交易分析",
+        "hero_desc": "使用AI驱动的专业量化分析工具，获得数据驱动的投资洞察",
+        "chat_title": "AI量化分析师",
         "data_source": "数据源",
         "technical_indicators": "技术指标",
-        "risk_control": "风控系统",
         "system_status": "系统状态",
-        "real_time_data": "实时数据",
-        "simulated_data": "模拟数据", 
-        "complete_indicators": "完整指标",
-        "basic_indicators": "基础指标",
-        "enabled": "已启用",
+        "real_time": "实时数据",
+        "simulated": "模拟数据",
+        "complete": "完整版",
+        "basic": "基础版",
         "online": "在线",
         "quick_analysis": "快速分析",
         "select_stock": "选择股票",
         "select_strategy": "选择策略",
         "start_analysis": "开始分析",
         "clear_history": "清除历史",
-        "trend_following": "趋势跟踪",
-        "mean_reversion": "均值回归", 
+        "trend_strategy": "趋势策略",
+        "mean_reversion": "均值回归",
         "momentum_strategy": "动量策略",
-        "example_queries": "示例查询",
-        "welcome_message": """🎯 **欢迎使用QuantGPT Pro专业版**
+        "examples": "示例查询",
+        "features": {
+            "intelligent": {
+                "title": "智能分析",
+                "desc": "AI驱动的量化策略分析"
+            },
+            "professional": {
+                "title": "专业回测",
+                "desc": "完整的回测指标和风险评估"
+            },
+            "realtime": {
+                "title": "实时数据",
+                "desc": "获取最新的市场数据"
+            },
+            "multilingual": {
+                "title": "中英双语",
+                "desc": "支持中文和英文交互"
+            }
+        },
+        "welcome": """👋 **欢迎使用QuantGPT Pro！**
 
-我是您的专业AI量化分析师，支持中英文交互。
+我是您的专业AI量化分析师，可以帮助您：
 
-**核心功能：**
-• 趋势跟踪 - 双均线策略分析
-• 均值回归 - 布林带策略分析  
-• 动量策略 - RSI技术指标分析
+**🎯 核心功能**
+• **趋势策略** - 双均线交易系统分析
+• **均值回归** - 布林带策略回测
+• **动量策略** - RSI技术指标分析
 
-**使用示例：**
+**📊 专业服务**
+• 完整的量化回测分析
+• 风险调整收益评估
+• 实时交易信号生成
+
+**💬 使用示例**
 • "分析苹果公司的趋势策略"
 • "分析AAPL的trend strategy"
-• "特斯拉的布林带策略怎么样"
-• "Analyze TSLA momentum strategy"
+• "特斯拉的布林带策略分析"
 
-现在您可以用中文或英文与我对话！""",
-        "analysis_result": "分析结果",
-        "strategy_description": "策略说明",
-        "backtest_metrics": "回测指标",
-        "ai_assessment": "AI评估",
-        "total_return": "总收益率",
-        "annual_return": "年化收益率", 
-        "sharpe_ratio": "夏普比率",
-        "max_drawdown": "最大回撤",
-        "win_rate": "胜率",
-        "trade_count": "交易次数"
+现在开始您的量化分析之旅吧！"""
     },
     "English": {
         "title": "QuantGPT Pro",
-        "subtitle": "Professional Quantitative Trading Platform",
-        "chat_header": "AI Quant Analyst",
+        "subtitle": "Professional AI Quantitative Trading Platform",
+        "hero_title": "Intelligent Quantitative Analysis",
+        "hero_desc": "Get data-driven investment insights with AI-powered professional quantitative analysis tools",
+        "chat_title": "AI Quantitative Analyst",
         "data_source": "Data Source",
-        "technical_indicators": "Technical Indicators", 
-        "risk_control": "Risk Control",
+        "technical_indicators": "Technical Indicators",
         "system_status": "System Status",
-        "real_time_data": "Real-time Data",
-        "simulated_data": "Simulated Data",
-        "complete_indicators": "Complete Indicators",
-        "basic_indicators": "Basic Indicators", 
-        "enabled": "Enabled",
+        "real_time": "Real-time Data",
+        "simulated": "Simulated Data",
+        "complete": "Complete",
+        "basic": "Basic",
         "online": "Online",
         "quick_analysis": "Quick Analysis",
         "select_stock": "Select Stock",
-        "select_strategy": "Select Strategy", 
+        "select_strategy": "Select Strategy",
         "start_analysis": "Start Analysis",
         "clear_history": "Clear History",
-        "trend_following": "Trend Following",
+        "trend_strategy": "Trend Strategy",
         "mean_reversion": "Mean Reversion",
         "momentum_strategy": "Momentum Strategy",
-        "example_queries": "Example Queries",
-        "welcome_message": """🎯 **Welcome to QuantGPT Pro**
+        "examples": "Example Queries",
+        "features": {
+            "intelligent": {
+                "title": "Intelligent Analysis",
+                "desc": "AI-driven quantitative strategy analysis"
+            },
+            "professional": {
+                "title": "Professional Backtesting",
+                "desc": "Complete backtesting metrics and risk assessment"
+            },
+            "realtime": {
+                "title": "Real-time Data",
+                "desc": "Access to latest market data"
+            },
+            "multilingual": {
+                "title": "Bilingual Support",
+                "desc": "Chinese and English interaction"
+            }
+        },
+        "welcome": """👋 **Welcome to QuantGPT Pro!**
 
-I'm your professional AI quantitative analyst, supporting both Chinese and English.
+I'm your professional AI quantitative analyst, here to help you with:
 
-**Core Features:**
-• Trend Following - Moving Average Strategy Analysis
-• Mean Reversion - Bollinger Bands Strategy Analysis  
-• Momentum Strategy - RSI Technical Indicator Analysis
+**🎯 Core Features**
+• **Trend Strategy** - Moving average trading system analysis
+• **Mean Reversion** - Bollinger Bands strategy backtesting
+• **Momentum Strategy** - RSI technical indicator analysis
 
-**Usage Examples:**
+**📊 Professional Services**
+• Complete quantitative backtesting analysis
+• Risk-adjusted return evaluation
+• Real-time trading signal generation
+
+**💬 Usage Examples**
 • "Analyze AAPL trend strategy"
 • "分析苹果公司的趋势策略"
-• "How is TSLA's Bollinger Bands strategy"
-• "特斯拉的动量策略分析"
+• "Tesla Bollinger Bands strategy analysis"
 
-You can now chat with me in Chinese or English!""",
-        "analysis_result": "Analysis Result",
-        "strategy_description": "Strategy Description", 
-        "backtest_metrics": "Backtest Metrics",
-        "ai_assessment": "AI Assessment",
-        "total_return": "Total Return",
-        "annual_return": "Annual Return",
-        "sharpe_ratio": "Sharpe Ratio", 
-        "max_drawdown": "Max Drawdown",
-        "win_rate": "Win Rate",
-        "trade_count": "Trade Count"
+Start your quantitative analysis journey now!"""
     }
 }
 
@@ -527,9 +726,9 @@ class StrategyEngine:
         data['Position'] = data['Signal'].diff()
         
         if self.lang == "中文":
-            desc = f"双均线策略({short_window}日/{long_window}日) - 短期均线上穿长期均线时买入"
+            desc = f"双均线趋势策略 ({short_window}日/{long_window}日)"
         else:
-            desc = f"Moving Average Strategy ({short_window}d/{long_window}d) - Buy when short MA crosses above long MA"
+            desc = f"Moving Average Trend Strategy ({short_window}d/{long_window}d)"
         
         return data, desc
     
@@ -546,9 +745,9 @@ class StrategyEngine:
         data['Position'] = data['Signal'].diff()
         
         if self.lang == "中文":
-            desc = f"布林带均值回归策略({window}日) - 价格触及下轨买入，上轨卖出"
+            desc = f"布林带均值回归策略 ({window}日)"
         else:
-            desc = f"Bollinger Bands Mean Reversion ({window}d) - Buy at lower band, sell at upper band"
+            desc = f"Bollinger Bands Mean Reversion ({window}d)"
         
         return data, desc
     
@@ -562,9 +761,9 @@ class StrategyEngine:
         data['Position'] = data['Signal'].diff()
         
         if self.lang == "中文":
-            desc = f"RSI动量策略({rsi_window}日) - RSI超买超卖信号交易"
+            desc = f"RSI动量策略 ({rsi_window}日)"
         else:
-            desc = f"RSI Momentum Strategy ({rsi_window}d) - Trade on RSI overbought/oversold signals"
+            desc = f"RSI Momentum Strategy ({rsi_window}d)"
         
         return data, desc
 
@@ -589,7 +788,7 @@ class BacktestEngine:
         strategy_returns = data['Strategy_Returns'].dropna()
         
         if len(strategy_returns) == 0:
-            return {"Error": "No valid trading data" if self.lang == "English" else "无有效交易数据"}
+            return {"Error": "No valid data" if self.lang == "English" else "无有效数据"}
         
         total_return = data['Strategy_Cumulative'].iloc[-1] - 1
         annual_return = (1 + total_return) ** (252 / len(strategy_returns)) - 1
@@ -624,7 +823,7 @@ class BacktestEngine:
                 "Trade Count": total_trades
             }
 
-# 中英文AI分析师
+# AI分析师
 class BilingualQuantGPTAnalyst:
     def __init__(self, lang="中文"):
         self.lang = lang
@@ -632,23 +831,15 @@ class BilingualQuantGPTAnalyst:
         self.backtest_engine = BacktestEngine(lang)
     
     def detect_language(self, text):
-        # 简单的语言检测
         chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
         english_chars = len(re.findall(r'[a-zA-Z]', text))
-        
-        if chinese_chars > english_chars:
-            return "中文"
-        else:
-            return "English"
+        return "中文" if chinese_chars > english_chars else "English"
     
     def parse_input(self, user_input):
-        # 检测语言
         detected_lang = self.detect_language(user_input)
         
-        # 提取股票代码（支持中英文描述）
         stocks = re.findall(r'\b[A-Z]{1,5}\b', user_input.upper())
         
-        # 中文股票名称映射
         chinese_stocks = {
             "苹果": "AAPL", "苹果公司": "AAPL", "apple": "AAPL",
             "特斯拉": "TSLA", "tesla": "TSLA",
@@ -658,22 +849,14 @@ class BilingualQuantGPTAnalyst:
             "亚马逊": "AMZN", "amazon": "AMZN"
         }
         
-        # 添加中文股票识别
         for chinese_name, symbol in chinese_stocks.items():
             if chinese_name in user_input.lower():
                 stocks.append(symbol)
         
-        # 策略识别（中英文）
         strategy_keywords = {
-            # 趋势策略
-            "趋势": "trend", "均线": "trend", "双均线": "trend", "moving average": "trend", 
-            "trend": "trend", "ma": "trend",
-            # 均值回归
+            "趋势": "trend", "均线": "trend", "双均线": "trend", "moving average": "trend", "trend": "trend",
             "均值回归": "mean", "布林带": "mean", "bollinger": "mean", "mean reversion": "mean",
-            "bb": "mean", "bands": "mean",
-            # 动量策略  
-            "动量": "momentum", "rsi": "momentum", "momentum": "momentum",
-            "相对强弱": "momentum", "超买超卖": "momentum"
+            "动量": "momentum", "rsi": "momentum", "momentum": "momentum"
         }
         
         strategy = None
@@ -703,7 +886,6 @@ class BilingualQuantGPTAnalyst:
         backtest_data = self.backtest_engine.run_backtest(data)
         metrics = self.backtest_engine.calculate_metrics(backtest_data)
         
-        # 存储数据
         if 'analysis_data' not in st.session_state:
             st.session_state.analysis_data = {}
         st.session_state.analysis_data[stock] = backtest_data
@@ -713,55 +895,51 @@ class BilingualQuantGPTAnalyst:
     def format_result(self, stock, description, metrics):
         if self.lang == "中文":
             result = f"## 📊 {stock} 量化分析报告\n\n"
-            result += f"**策略说明：** {description}\n\n"
-            result += "**回测指标：**\n"
+            result += f"**策略描述：** {description}\n\n"
+            result += "**核心指标：**\n"
         else:
             result = f"## 📊 {stock} Quantitative Analysis Report\n\n"
-            result += f"**Strategy Description:** {description}\n\n"
-            result += "**Backtest Metrics:**\n"
+            result += f"**Strategy:** {description}\n\n"
+            result += "**Key Metrics:**\n"
         
         for metric, value in metrics.items():
             result += f"• **{metric}**: {value}\n"
         
-        # AI评估
         try:
             sharpe_key = "夏普比率" if self.lang == "中文" else "Sharpe Ratio"
             sharpe = float(metrics[sharpe_key])
             
-            if self.lang == "中文":
-                result += "\n### 🤖 AI智能评估\n\n"
-                if sharpe > 1.0:
-                    result += "✅ **评估结果：** 策略表现优秀，夏普比率超过1.0，具备实盘价值\n"
-                    result += "💡 **建议：** 可考虑小仓位实盘测试，建议设置5-8%止损"
-                elif sharpe > 0.5:
-                    result += "⚠️ **评估结果：** 策略表现中等，有一定参考价值\n"
-                    result += "💡 **建议：** 建议优化参数或结合其他指标使用"
+            result += "\n### 🎯 AI评估\n\n" if self.lang == "中文" else "\n### 🎯 AI Assessment\n\n"
+            
+            if sharpe > 1.0:
+                if self.lang == "中文":
+                    result += "✅ **优秀策略** - 夏普比率 > 1.0，风险调整收益表现出色\n"
+                    result += "💡 **建议** - 可考虑实盘测试，建议5-10%仓位"
                 else:
-                    result += "❌ **评估结果：** 策略表现较差，不建议直接使用\n"
-                    result += "💡 **建议：** 重新选择策略或调整参数设置"
+                    result += "✅ **Excellent Strategy** - Sharpe ratio > 1.0, outstanding risk-adjusted returns\n"
+                    result += "💡 **Recommendation** - Consider live testing with 5-10% position size"
+            elif sharpe > 0.5:
+                if self.lang == "中文":
+                    result += "⚠️ **中等策略** - 有一定价值，建议优化参数\n"
+                    result += "💡 **建议** - 可小仓位测试或结合其他策略"
+                else:
+                    result += "⚠️ **Moderate Strategy** - Has value, recommend parameter optimization\n"
+                    result += "💡 **Recommendation** - Test with small position or combine with other strategies"
             else:
-                result += "\n### 🤖 AI Assessment\n\n"
-                if sharpe > 1.0:
-                    result += "✅ **Assessment:** Excellent strategy performance with Sharpe ratio > 1.0, suitable for live trading\n"
-                    result += "💡 **Recommendation:** Consider small position live testing with 5-8% stop loss"
-                elif sharpe > 0.5:
-                    result += "⚠️ **Assessment:** Moderate strategy performance with reference value\n"
-                    result += "💡 **Recommendation:** Optimize parameters or combine with other indicators"
+                if self.lang == "中文":
+                    result += "❌ **需要改进** - 表现不佳，建议重新评估\n"
+                    result += "💡 **建议** - 尝试其他策略或调整参数"
                 else:
-                    result += "❌ **Assessment:** Poor strategy performance, not recommended for direct use\n"
-                    result += "💡 **Recommendation:** Re-select strategy or adjust parameter settings"
+                    result += "❌ **Needs Improvement** - Poor performance, recommend reassessment\n"
+                    result += "💡 **Recommendation** - Try other strategies or adjust parameters"
         except:
-            if self.lang == "中文":
-                result += "\n💡 **AI评估：** 分析完成，请查看详细指标"
-            else:
-                result += "\n💡 **AI Assessment:** Analysis completed, please review detailed metrics"
+            result += "\n💡 分析完成" if self.lang == "中文" else "\n💡 Analysis completed"
         
         return result
     
     def generate_response(self, user_input):
         parsed = self.parse_input(user_input)
         
-        # 更新分析师语言设置
         if parsed["language"] != self.lang:
             self.lang = parsed["language"]
             self.strategy_engine.lang = parsed["language"]
@@ -769,29 +947,9 @@ class BilingualQuantGPTAnalyst:
         
         if not parsed["stocks"]:
             if self.lang == "中文":
-                return """🤖 **请指定股票代码进行分析**
-
-**支持格式：**
-• 股票代码：AAPL, TSLA, GOOGL等
-• 中文名称：苹果公司、特斯拉、谷歌等
-
-**示例：**
-• "分析苹果公司的趋势策略"
-• "分析AAPL的趋势策略"
-• "特斯拉的布林带策略分析"
-"""
+                return "🤖 请指定要分析的股票，如：'分析AAPL的趋势策略' 或 '苹果公司的布林带策略'"
             else:
-                return """🤖 **Please specify stock symbol for analysis**
-
-**Supported formats:**
-• Stock symbols: AAPL, TSLA, GOOGL, etc.
-• Company names: Apple, Tesla, Google, etc.
-
-**Examples:**
-• "Analyze AAPL trend strategy"
-• "Tesla Bollinger Bands strategy analysis"
-• "Google momentum strategy"
-"""
+                return "🤖 Please specify a stock to analyze, e.g., 'Analyze AAPL trend strategy' or 'Apple Bollinger Bands strategy'"
         
         results = []
         for stock in parsed["stocks"]:
@@ -799,38 +957,35 @@ class BilingualQuantGPTAnalyst:
                 result = self.analyze_stock(stock, parsed["strategy"])
                 results.append(result)
             except Exception as e:
-                if self.lang == "中文":
-                    results.append(f"❌ 分析{stock}失败：{str(e)}")
-                else:
-                    results.append(f"❌ Analysis failed for {stock}: {str(e)}")
+                error_msg = f"❌ 分析{stock}失败：{str(e)}" if self.lang == "中文" else f"❌ Failed to analyze {stock}: {str(e)}"
+                results.append(error_msg)
         
         return "\n\n".join(results)
 
-# 专业图表生成
-def create_professional_chart(stock):
+# 图表生成
+def create_openquant_style_chart(stock):
     if 'analysis_data' not in st.session_state or stock not in st.session_state.analysis_data:
         st.error(f"No data available for {stock}")
         return
     
     data = st.session_state.analysis_data[stock]
     
-    # 创建专业深色主题图表
     fig = make_subplots(
         rows=3, cols=1,
         shared_xaxes=True,
-        subplot_titles=[f'{stock} Price Action & Signals', 'Technical Indicators', 'Strategy Performance'],
+        subplot_titles=[f'{stock} Price & Signals', 'Technical Indicators', 'Strategy Performance'],
         row_heights=[0.5, 0.25, 0.25],
-        vertical_spacing=0.05
+        vertical_spacing=0.08
     )
     
-    # 价格线 - 专业样式
+    # 价格线 - OpenQuant风格
     fig.add_trace(
         go.Scatter(
             x=data.index, 
             y=data['Close'], 
-            name='Close Price',
-            line=dict(color='#E2E8F0', width=2),
-            hovertemplate='<b>Close</b>: $%{y:.2f}<br><b>Date</b>: %{x}<extra></extra>'
+            name='Price',
+            line=dict(color='#3B82F6', width=2.5),
+            hovertemplate='<b>Price</b>: $%{y:.2f}<br><b>Date</b>: %{x}<extra></extra>'
         ),
         row=1, col=1
     )
@@ -842,7 +997,7 @@ def create_professional_chart(stock):
                 x=data.index, 
                 y=data['SMA_short'], 
                 name='Short MA',
-                line=dict(color='#4299E1', width=1.5, dash='dot'),
+                line=dict(color='#10B981', width=2, dash='dot'),
                 opacity=0.8
             ),
             row=1, col=1
@@ -854,13 +1009,13 @@ def create_professional_chart(stock):
                 x=data.index, 
                 y=data['SMA_long'], 
                 name='Long MA',
-                line=dict(color='#ED8936', width=1.5, dash='dot'),
+                line=dict(color='#F59E0B', width=2, dash='dot'),
                 opacity=0.8
             ),
             row=1, col=1
         )
     
-    # 交易信号 - 专业标记
+    # 交易信号
     buy_signals = data[data['Position'] == 1]
     sell_signals = data[data['Position'] == -1]
     
@@ -870,14 +1025,9 @@ def create_professional_chart(stock):
                 x=buy_signals.index, 
                 y=buy_signals['Close'],
                 mode='markers', 
-                name='Buy Signal',
-                marker=dict(
-                    color='#48BB78', 
-                    size=12, 
-                    symbol='triangle-up',
-                    line=dict(color='#2F855A', width=2)
-                ),
-                hovertemplate='<b>Buy Signal</b><br>Price: $%{y:.2f}<br>Date: %{x}<extra></extra>'
+                name='Buy',
+                marker=dict(color='#10B981', size=10, symbol='triangle-up'),
+                hovertemplate='<b>Buy Signal</b><br>Price: $%{y:.2f}<extra></extra>'
             ),
             row=1, col=1
         )
@@ -888,14 +1038,9 @@ def create_professional_chart(stock):
                 x=sell_signals.index, 
                 y=sell_signals['Close'],
                 mode='markers', 
-                name='Sell Signal',
-                marker=dict(
-                    color='#F56565', 
-                    size=12, 
-                    symbol='triangle-down',
-                    line=dict(color='#C53030', width=2)
-                ),
-                hovertemplate='<b>Sell Signal</b><br>Price: $%{y:.2f}<br>Date: %{x}<extra></extra>'
+                name='Sell',
+                marker=dict(color='#EF4444', size=10, symbol='triangle-down'),
+                hovertemplate='<b>Sell Signal</b><br>Price: $%{y:.2f}<extra></extra>'
             ),
             row=1, col=1
         )
@@ -907,15 +1052,13 @@ def create_professional_chart(stock):
                 x=data.index, 
                 y=data['RSI'], 
                 name='RSI',
-                line=dict(color='#9F7AEA', width=2),
+                line=dict(color='#8B5CF6', width=2),
                 hovertemplate='<b>RSI</b>: %{y:.1f}<extra></extra>'
             ),
             row=2, col=1
         )
-        # RSI参考线
-        fig.add_hline(y=70, row=2, col=1, line_dash="dash", line_color="#F56565", opacity=0.6)
-        fig.add_hline(y=30, row=2, col=1, line_dash="dash", line_color="#48BB78", opacity=0.6)
-        fig.add_hline(y=50, row=2, col=1, line_dash="dot", line_color="#A0AEC0", opacity=0.4)
+        fig.add_hline(y=70, row=2, col=1, line_dash="dash", line_color="#EF4444", opacity=0.6)
+        fig.add_hline(y=30, row=2, col=1, line_dash="dash", line_color="#10B981", opacity=0.6)
     
     # 收益对比
     benchmark = (data['Cumulative_Returns'] - 1) * 100
@@ -926,7 +1069,7 @@ def create_professional_chart(stock):
             x=data.index, 
             y=benchmark, 
             name='Buy & Hold',
-            line=dict(color='#718096', width=2, dash='dot'),
+            line=dict(color='#9CA3AF', width=2),
             hovertemplate='<b>Buy & Hold</b>: %{y:.1f}%<extra></extra>'
         ),
         row=3, col=1
@@ -937,117 +1080,142 @@ def create_professional_chart(stock):
             x=data.index, 
             y=strategy, 
             name='Strategy',
-            line=dict(color='#48BB78', width=3),
+            line=dict(color='#3B82F6', width=3),
             fill='tonexty',
-            fillcolor='rgba(72, 187, 120, 0.1)',
-            hovertemplate='<b>Strategy Return</b>: %{y:.1f}%<extra></extra>'
+            fillcolor='rgba(59, 130, 246, 0.1)',
+            hovertemplate='<b>Strategy</b>: %{y:.1f}%<extra></extra>'
         ),
         row=3, col=1
     )
     
-    # 专业深色主题布局
+    # OpenQuant风格布局
     fig.update_layout(
-        height=800,
+        height=700,
         title={
             'text': f"<b>{stock}</b> Quantitative Analysis",
             'x': 0.5,
-            'font': {'size': 20, 'color': '#E2E8F0', 'family': 'Roboto Mono'}
+            'font': {'size': 18, 'color': '#1F2937', 'family': 'Inter'}
         },
         showlegend=True,
-        plot_bgcolor='#1A202C',
-        paper_bgcolor='#1A202C',
-        font=dict(color='#E2E8F0', family='Inter'),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(color='#374151', family='Inter'),
         legend=dict(
-            bgcolor='rgba(45, 55, 72, 0.8)',
-            bordercolor='#4A5568',
+            bgcolor='white',
+            bordercolor='#E5E7EB',
             borderwidth=1,
-            font=dict(color='#E2E8F0', size=11)
+            font=dict(color='#374151', size=12)
         ),
-        hovermode='x unified',
-        hoverlabel=dict(
-            bgcolor='#2D3748',
-            bordercolor='#4A5568',
-            font_color='#E2E8F0'
-        )
+        hovermode='x unified'
     )
     
-    # 更新子图背景
+    # 更新坐标轴
     for i in range(1, 4):
         fig.update_xaxes(
             showgrid=True, 
             gridwidth=1, 
-            gridcolor='rgba(74, 85, 104, 0.3)',
+            gridcolor='#F3F4F6',
             showline=True,
-            linecolor='#4A5568',
+            linecolor='#E5E7EB',
             row=i, col=1
         )
         fig.update_yaxes(
             showgrid=True, 
             gridwidth=1, 
-            gridcolor='rgba(74, 85, 104, 0.3)',
+            gridcolor='#F3F4F6',
             showline=True,
-            linecolor='#4A5568',
+            linecolor='#E5E7EB',
             row=i, col=1
         )
     
     return fig
 
-# 消息显示组件
+# 消息显示
 def display_message(message, is_user=False, lang="中文"):
-    message_type = "user" if is_user else "assistant"
-    header_text = "You" if is_user else ("AI Analyst" if lang == "English" else "AI分析师")
-    
-    st.markdown(f"""
-    <div class="message {message_type}">
-        <div class="message-header">{header_text}</div>
-        <div>{message}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    if is_user:
+        st.markdown(f"""
+        <div class="message user">
+            <div class="message-avatar user-avatar">U</div>
+            <div class="message-content">{message}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="message assistant">
+            <div class="message-avatar assistant-avatar">AI</div>
+            <div class="message-content">{message}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # 主程序
 def main():
-    # 语言选择
+    # 语言设置
     if 'language' not in st.session_state:
         st.session_state.language = "中文"
     
     lang = st.session_state.language
     t = LANGUAGES[lang]
     
-    # 专业头部
-    st.markdown(f"""
-    <div class="professional-header">
-        <h1 class="header-title">{t['title']}</h1>
-        <p class="header-subtitle">{t['subtitle']}</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 状态栏
+    # 顶部导航
     status_data = "status-online" if YFINANCE_AVAILABLE else "status-offline"
-    status_text = t["real_time_data"] if YFINANCE_AVAILABLE else t["simulated_data"]
+    data_text = t["real_time"] if YFINANCE_AVAILABLE else t["simulated"]
     
     status_ta = "status-online" if TA_AVAILABLE else "status-warning"
-    ta_text = t["complete_indicators"] if TA_AVAILABLE else t["basic_indicators"]
+    ta_text = t["complete"] if TA_AVAILABLE else t["basic"]
     
     st.markdown(f"""
-    <div class="status-bar">
-        <div>
-            <span class="status-indicator {status_data}">📡 {t['data_source']}: {status_text}</span>
-            <span class="status-indicator {status_ta}">📈 {t['technical_indicators']}: {ta_text}</span>
-            <span class="status-indicator status-online">🛡️ {t['risk_control']}: {t['enabled']}</span>
+    <div class="top-nav">
+        <div class="logo-section">
+            <div class="logo">📊 {t['title']}</div>
+            <div class="logo-subtitle">{t['subtitle']}</div>
         </div>
-        <div>
-            <span class="status-indicator status-online">⚡ {t['system_status']}: {t['online']}</span>
+        <div class="nav-status">
+            <div class="status-badge {status_data}">{t['data_source']}: {data_text}</div>
+            <div class="status-badge {status_ta}">{t['technical_indicators']}: {ta_text}</div>
+            <div class="status-badge status-online">{t['system_status']}: {t['online']}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # 主要内容
-    st.markdown('<div class="main-content">', unsafe_allow_html=True)
+    # 主容器
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+    
+    # 英雄区域
+    st.markdown(f"""
+    <div class="hero-section">
+        <h1 class="hero-title">{t['hero_title']}</h1>
+        <p class="hero-subtitle">{t['hero_desc']}</p>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <div class="feature-title">{t['features']['intelligent']['title']}</div>
+                <div class="feature-desc">{t['features']['intelligent']['desc']}</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">{t['features']['professional']['title']}</div>
+                <div class="feature-desc">{t['features']['professional']['desc']}</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-title">{t['features']['realtime']['title']}</div>
+                <div class="feature-desc">{t['features']['realtime']['desc']}</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <div class="feature-title">{t['features']['multilingual']['title']}</div>
+                <div class="feature-desc">{t['features']['multilingual']['desc']}</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # 聊天界面
     st.markdown(f"""
     <div class="chat-container">
-        <div class="chat-header">{t['chat_header']}</div>
+        <div class="chat-header">
+            🤖 {t['chat_title']}
+        </div>
         <div class="chat-messages">
     """, unsafe_allow_html=True)
     
@@ -1055,74 +1223,66 @@ def main():
     if "messages" not in st.session_state:
         st.session_state.messages = [{
             "role": "assistant",
-            "content": t["welcome_message"]
+            "content": t["welcome"]
         }]
     
     if "analyst" not in st.session_state:
         st.session_state.analyst = BilingualQuantGPTAnalyst(lang)
     
-    # 显示消息历史
+    # 显示消息
     for message in st.session_state.messages:
         display_message(message["content"], message["role"] == "user", lang)
     
     st.markdown('</div></div>', unsafe_allow_html=True)
     
     # 用户输入
-    user_input = st.chat_input(
-        "输入您的分析需求 (支持中英文)..." if lang == "中文" else "Enter your analysis request (Chinese/English supported)..."
-    )
+    placeholder_text = "输入您的分析需求..." if lang == "中文" else "Enter your analysis request..."
+    user_input = st.chat_input(placeholder_text)
     
     if user_input:
         st.session_state.messages.append({"role": "user", "content": user_input})
         
-        with st.spinner("🤖 AI analyzing..." if lang == "English" else "🤖 AI分析中..."):
+        with st.spinner("🤖 分析中..." if lang == "中文" else "🤖 Analyzing..."):
             response = st.session_state.analyst.generate_response(user_input)
         
         st.session_state.messages.append({"role": "assistant", "content": response})
         st.rerun()
     
-    # 图表按钮
+    # 图表展示
     if 'analysis_data' in st.session_state and st.session_state.analysis_data:
         st.markdown("---")
-        st.markdown("### 📊 Professional Charts" if lang == "English" else "### 📊 专业图表")
+        st.markdown(f'<div class="chart-title">📈 专业图表分析</div>' if lang == "中文" else f'<div class="chart-title">📈 Professional Chart Analysis</div>', unsafe_allow_html=True)
         
         cols = st.columns(len(st.session_state.analysis_data))
         for i, stock in enumerate(st.session_state.analysis_data.keys()):
             with cols[i]:
-                button_text = f"📈 {stock} Chart" if lang == "English" else f"📈 {stock} 图表"
+                button_text = f"查看 {stock} 图表" if lang == "中文" else f"View {stock} Chart"
                 if st.button(button_text, key=f"chart_{stock}", use_container_width=True):
                     st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-                    fig = create_professional_chart(stock)
+                    fig = create_openquant_style_chart(stock)
                     if fig:
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                     st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # 专业侧边栏
+    # 侧边栏
     with st.sidebar:
-        st.markdown(f'<div class="sidebar-title">⚙️ {t["quick_analysis"].upper()}</div>', unsafe_allow_html=True)
-        
-        # 语言切换
-        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
-        new_lang = st.selectbox(
-            "Language / 语言",
-            ["中文", "English"],
-            index=0 if lang == "中文" else 1
-        )
+        # 语言选择
+        st.markdown(f'<div class="sidebar-title">🌐 Language / 语言</div>', unsafe_allow_html=True)
+        new_lang = st.selectbox("", ["中文", "English"], index=0 if lang == "中文" else 1)
         
         if new_lang != st.session_state.language:
             st.session_state.language = new_lang
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
         
         # 快速分析
-        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.markdown(f'<div class="sidebar-title">🚀 {t["quick_analysis"]}</div>', unsafe_allow_html=True)
         
         stocks = ["AAPL", "TSLA", "GOOGL", "MSFT", "NVDA", "AMZN"]
         selected_stock = st.selectbox(t["select_stock"], stocks)
         
-        strategies = [t["trend_following"], t["mean_reversion"], t["momentum_strategy"]]
+        strategies = [t["trend_strategy"], t["mean_reversion"], t["momentum_strategy"]]
         selected_strategy = st.selectbox(t["select_strategy"], strategies)
         
         if st.button(t["start_analysis"], use_container_width=True, type="primary"):
@@ -1130,9 +1290,9 @@ def main():
                 query = f"分析{selected_stock}的{selected_strategy}"
             else:
                 strategy_map = {
-                    "Trend Following": "trend strategy",
+                    "Trend Strategy": "trend strategy",
                     "Mean Reversion": "Bollinger Bands strategy", 
-                    "Momentum Strategy": "RSI strategy"
+                    "Momentum Strategy": "RSI momentum strategy"
                 }
                 query = f"Analyze {selected_stock} {strategy_map.get(selected_strategy, 'strategy')}"
             
@@ -1141,27 +1301,22 @@ def main():
             st.session_state.messages.append({"role": "assistant", "content": response})
             st.rerun()
         
-        st.markdown('</div>', unsafe_allow_html=True)
-        
         # 示例查询
-        st.markdown(f'<div class="sidebar-title">{t["example_queries"].upper()}</div>', unsafe_allow_html=True)
-        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.markdown(f'<div class="sidebar-title">💡 {t["examples"]}</div>', unsafe_allow_html=True)
         
         if lang == "中文":
             examples = [
                 "分析苹果公司的趋势策略",
-                "特斯拉的布林带策略分析", 
+                "特斯拉的布林带策略",
                 "谷歌的RSI动量策略",
-                "微软的双均线策略",
-                "英伟达的均值回归策略"
+                "微软的双均线策略"
             ]
         else:
             examples = [
                 "Analyze AAPL trend strategy",
-                "Tesla Bollinger Bands analysis",
-                "Google RSI momentum strategy", 
-                "Microsoft moving average strategy",
-                "NVIDIA mean reversion analysis"
+                "Tesla Bollinger Bands strategy",
+                "Google RSI momentum strategy",
+                "Microsoft moving average strategy"
             ]
         
         for example in examples:
@@ -1171,28 +1326,12 @@ def main():
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.rerun()
         
-        st.markdown('</div>', unsafe_allow_html=True)
-        
         # 清除历史
         if st.button(t["clear_history"], use_container_width=True):
             st.session_state.messages = [st.session_state.messages[0]]
             if 'analysis_data' in st.session_state:
                 del st.session_state.analysis_data
             st.rerun()
-        
-        # 系统信息
-        st.markdown("---")
-        st.markdown(f"""
-        <div style="text-align: center; padding: 1rem; background: #2D3748; border-radius: 6px; font-family: 'Roboto Mono', monospace; font-size: 0.75rem; color: #A0AEC0;">
-            <div><strong>QuantGPT Pro v2.0</strong></div>
-            <div>Professional Trading Platform</div>
-            <div style="margin-top: 0.5rem;">
-                {t['data_source']}: {'yfinance' if YFINANCE_AVAILABLE else 'Simulated'}<br>
-                {t['technical_indicators']}: {'Complete' if TA_AVAILABLE else 'Basic'}<br>
-                Strategies: 3 Core Algorithms
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
