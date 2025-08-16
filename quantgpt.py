@@ -13,7 +13,7 @@ warnings.filterwarnings('ignore')
 
 # 页面配置 - 类似Claude.ai的简洁设计
 st.set_page_config(
-    page_title="QuantGPT - AI量化交易助手",
+    page_title="QuantGPT - AI Quantitative Trading Assistant",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -238,48 +238,56 @@ class QuantGPTCore:
         }
 
 class NLPCommandParser:
-    """自然语言命令解析器"""
+    """Natural Language Command Parser"""
     
     def __init__(self):
         self.patterns = {
             'analyze': [
-                r'分析\s*([A-Z]{1,5})',
-                r'帮我分析\s*([A-Z]{1,5})',
                 r'analyze\s*([A-Z]{1,5})',
-                r'给我看看\s*([A-Z]{1,5})',
-                r'([A-Z]{1,5})\s*怎么样',
-                r'([A-Z]{1,5})\s*的情况'
+                r'analyse\s*([A-Z]{1,5})',
+                r'check\s*([A-Z]{1,5})',
+                r'look\s*at\s*([A-Z]{1,5})',
+                r'tell\s*me\s*about\s*([A-Z]{1,5})',
+                r'what\s*about\s*([A-Z]{1,5})',
+                r'how\s*is\s*([A-Z]{1,5})',
+                r'([A-Z]{1,5})\s*analysis',
+                r'show\s*me\s*([A-Z]{1,5})',
+                r'give\s*me\s*([A-Z]{1,5})'
             ],
             'compare': [
-                r'比较\s*([A-Z]{1,5})\s*和\s*([A-Z]{1,5})',
+                r'compare\s*([A-Z]{1,5})\s*(and|vs|versus|with)\s*([A-Z]{1,5})',
                 r'([A-Z]{1,5})\s*vs\s*([A-Z]{1,5})',
-                r'帮我比较\s*([A-Z]{1,5})\s*和\s*([A-Z]{1,5})',
-                r'对比\s*([A-Z]{1,5})\s*和\s*([A-Z]{1,5})'
+                r'([A-Z]{1,5})\s*versus\s*([A-Z]{1,5})',
+                r'difference\s*between\s*([A-Z]{1,5})\s*and\s*([A-Z]{1,5})'
             ],
             'backtest': [
-                r'回测\s*([A-Z]{1,5})\s*(.*?)策略',
-                r'帮我回测\s*([A-Z]{1,5})',
+                r'backtest\s*([A-Z]{1,5})\s*(.*?)strategy',
+                r'test\s*([A-Z]{1,5})\s*strategy',
+                r'run\s*backtest\s*on\s*([A-Z]{1,5})',
                 r'backtest\s*([A-Z]{1,5})',
-                r'测试\s*([A-Z]{1,5})\s*的策略'
+                r'test\s*([A-Z]{1,5})\s*(SMA|RSI|MACD)',
+                r'strategy\s*test\s*([A-Z]{1,5})'
             ],
             'screen': [
-                r'筛选.*?(PE|市盈率).*?([<>=]).*?(\d+\.?\d*)',
-                r'筛选.*?(PB|市净率).*?([<>=]).*?(\d+\.?\d*)',
-                r'筛选.*?(ROE).*?([<>=]).*?(\d+\.?\d*)',
-                r'筛选.*?(RSI).*?([<>=]).*?(\d+\.?\d*)',
-                r'筛选.*?(价格|股价).*?([<>=]).*?(\d+\.?\d*)',
-                r'筛选.*?(市值).*?([<>=]).*?(\d+\.?\d*)',
-                r'找.*?(高分红|分红).*?股票',
-                r'找.*?(成长).*?股票',
-                r'找.*?(价值).*?股票'
+                r'screen.*?(PE|P/E).*?([<>=]).*?(\d+\.?\d*)',
+                r'screen.*?(PB|P/B).*?([<>=]).*?(\d+\.?\d*)',
+                r'screen.*?(ROE).*?([<>=]).*?(\d+\.?\d*)',
+                r'screen.*?(RSI).*?([<>=]).*?(\d+\.?\d*)',
+                r'screen.*?(price).*?([<>=]).*?(\d+\.?\d*)',
+                r'screen.*?(market\s*cap).*?([<>=]).*?(\d+\.?\d*)',
+                r'find.*?(dividend|high\s*dividend).*?stocks',
+                r'find.*?(growth).*?stocks',
+                r'find.*?(value).*?stocks',
+                r'screen\s*for.*?(dividend|growth|value)',
+                r'show\s*me.*?(dividend|growth|value).*?stocks'
             ]
         }
     
     def parse_command(self, text: str) -> Dict:
-        """解析自然语言命令"""
+        """Parse natural language command"""
         text = text.upper().strip()
         
-        # 分析单只股票
+        # Analyze single stock
         for pattern in self.patterns['analyze']:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
@@ -289,25 +297,35 @@ class NLPCommandParser:
                     'confidence': 0.9
                 }
         
-        # 比较两只股票
+        # Compare two stocks
         for pattern in self.patterns['compare']:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                return {
-                    'action': 'compare',
-                    'symbols': [match.group(1), match.group(2)],
-                    'confidence': 0.9
-                }
+                groups = match.groups()
+                if len(groups) >= 3:  # pattern with 'and/vs/versus'
+                    return {
+                        'action': 'compare',
+                        'symbols': [groups[0], groups[2]],
+                        'confidence': 0.9
+                    }
+                else:  # pattern without middle word
+                    return {
+                        'action': 'compare',
+                        'symbols': [groups[0], groups[1]],
+                        'confidence': 0.9
+                    }
         
-        # 回测策略
+        # Backtest strategy
         for pattern in self.patterns['backtest']:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                strategy = 'sma_crossover'  # 默认策略
+                strategy = 'sma_crossover'  # default strategy
                 if 'RSI' in text:
                     strategy = 'rsi'
                 elif 'MACD' in text:
                     strategy = 'macd'
+                elif 'SMA' in text:
+                    strategy = 'sma_crossover'
                 
                 return {
                     'action': 'backtest',
@@ -316,47 +334,49 @@ class NLPCommandParser:
                     'confidence': 0.8
                 }
         
-        # 股票筛选
+        # Stock screening
         for pattern in self.patterns['screen']:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                if '高分红' in text or '分红' in text:
+                if 'dividend' in text.lower() or 'high dividend' in text.lower():
                     return {
                         'action': 'screen',
                         'type': 'dividend',
                         'confidence': 0.8
                     }
-                elif '成长' in text:
+                elif 'growth' in text.lower():
                     return {
                         'action': 'screen',
                         'type': 'growth',
                         'confidence': 0.8
                     }
-                elif '价值' in text:
+                elif 'value' in text.lower():
                     return {
                         'action': 'screen',
                         'type': 'value',
                         'confidence': 0.8
                     }
                 else:
-                    # 具体指标筛选
-                    indicator = match.group(1)
-                    operator = match.group(2)
-                    value = float(match.group(3))
-                    
-                    return {
-                        'action': 'screen',
-                        'type': 'custom',
-                        'indicator': indicator,
-                        'operator': operator,
-                        'value': value,
-                        'confidence': 0.9
-                    }
+                    # Specific indicator screening
+                    groups = match.groups()
+                    if len(groups) >= 3:
+                        indicator = groups[0]
+                        operator = groups[1]
+                        value = float(groups[2])
+                        
+                        return {
+                            'action': 'screen',
+                            'type': 'custom',
+                            'indicator': indicator,
+                            'operator': operator,
+                            'value': value,
+                            'confidence': 0.9
+                        }
         
         return {'action': 'unknown', 'confidence': 0.0}
 
 class QuantGPTChatbot:
-    """QuantGPT聊天机器人"""
+    """QuantGPT Chatbot"""
     
     def __init__(self):
         self.core = QuantGPTCore()
@@ -364,39 +384,39 @@ class QuantGPTChatbot:
         self.default_symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA", "AMZN", "META", "NFLX", "JPM", "JNJ"]
     
     def analyze_stock(self, symbol: str) -> Dict:
-        """分析单只股票"""
-        # 获取数据
+        """Analyze single stock"""
+        # Get data
         data = self.core.get_stock_data(symbol)
         fundamental = self.core.get_fundamental_data(symbol)
         
         if data.empty:
-            return {"error": f"无法获取 {symbol} 的数据"}
+            return {"error": f"Unable to fetch data for {symbol}"}
         
         technical = self.core.calculate_technical_indicators(data)
         
-        # 生成分析结果
+        # Generate analysis results
         current_price = technical.get('current_price', 0)
         rsi = technical.get('rsi', 50)
         
-        # AI建议逻辑
+        # AI recommendation logic
         signals = []
         if rsi < 30:
-            signals.append("RSI显示超卖，可能是买入机会")
+            signals.append("RSI shows oversold condition, potential buy opportunity")
         elif rsi > 70:
-            signals.append("RSI显示超买，注意风险")
+            signals.append("RSI shows overbought condition, caution advised")
         
         if technical.get('sma_20', 0) > technical.get('sma_50', 0):
-            signals.append("短期趋势向上")
+            signals.append("Short-term trend is bullish")
         else:
-            signals.append("短期趋势向下")
+            signals.append("Short-term trend is bearish")
         
-        # PE估值分析
+        # PE valuation analysis
         pe = fundamental.get('pe_ratio')
         if pe:
             if pe < 15:
-                signals.append("PE估值偏低，可能被低估")
+                signals.append("PE ratio suggests undervaluation")
             elif pe > 30:
-                signals.append("PE估值偏高，注意泡沫风险")
+                signals.append("PE ratio suggests high valuation, bubble risk")
         
         return {
             "symbol": symbol,
@@ -409,7 +429,7 @@ class QuantGPTChatbot:
         }
     
     def compare_stocks(self, symbols: List[str]) -> Dict:
-        """比较股票"""
+        """Compare stocks"""
         results = {}
         for symbol in symbols:
             analysis = self.analyze_stock(symbol)
@@ -417,9 +437,9 @@ class QuantGPTChatbot:
                 results[symbol] = analysis
         
         if len(results) < 2:
-            return {"error": "无法获取足够的股票数据进行比较"}
+            return {"error": "Unable to fetch sufficient stock data for comparison"}
         
-        # 生成比较结论
+        # Generate comparison conclusion
         comparison = self._generate_comparison(results)
         
         return {
@@ -429,22 +449,22 @@ class QuantGPTChatbot:
         }
     
     def backtest_strategy(self, symbol: str, strategy: str = "sma_crossover") -> Dict:
-        """回测策略"""
+        """Backtest strategy"""
         data = self.core.get_stock_data(symbol, "2y")
         
         if data.empty:
-            return {"error": f"无法获取 {symbol} 的历史数据"}
+            return {"error": f"Unable to fetch historical data for {symbol}"}
         
-        # 简化的回测逻辑
+        # Simplified backtest logic
         if strategy == "sma_crossover":
             return self._backtest_sma_crossover(symbol, data)
         elif strategy == "rsi":
             return self._backtest_rsi(symbol, data)
         else:
-            return {"error": f"不支持的策略: {strategy}"}
+            return {"error": f"Unsupported strategy: {strategy}"}
     
     def screen_stocks(self, criteria: Dict) -> Dict:
-        """筛选股票"""
+        """Screen stocks"""
         results = []
         
         for symbol in self.default_symbols:
@@ -457,7 +477,7 @@ class QuantGPTChatbot:
                 
                 technical = self.core.calculate_technical_indicators(data)
                 
-                # 应用筛选条件
+                # Apply screening criteria
                 if self._meets_criteria(fundamental, technical, criteria):
                     results.append({
                         "symbol": symbol,
@@ -471,7 +491,7 @@ class QuantGPTChatbot:
             except:
                 continue
         
-        # 按市值排序
+        # Sort by market cap
         results.sort(key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
         
         return {
@@ -481,10 +501,10 @@ class QuantGPTChatbot:
         }
     
     def _generate_recommendation(self, technical: Dict, fundamental: Dict) -> str:
-        """生成投资建议"""
+        """Generate investment recommendation"""
         score = 0
         
-        # 技术面评分
+        # Technical analysis scoring
         rsi = technical.get('rsi', 50)
         if 30 <= rsi <= 70:
             score += 1
@@ -492,7 +512,7 @@ class QuantGPTChatbot:
         if technical.get('sma_20', 0) > technical.get('sma_50', 0):
             score += 1
         
-        # 基本面评分
+        # Fundamental analysis scoring
         pe = fundamental.get('pe_ratio')
         if pe and 10 <= pe <= 25:
             score += 1
@@ -500,8 +520,181 @@ class QuantGPTChatbot:
         if fundamental.get('roe') and fundamental.get('roe') > 0.15:
             score += 1
         
-        # 生成建议
+        # Generate recommendation
         if score >= 3:
+            return "🟢 BUY - Both technical and fundamental indicators look favorable"
+        elif score >= 2:
+            return "🟡 HOLD - Some indicators show positive signals"
+        else:
+            return "🔴 SELL/AVOID - Multiple indicators need improvement"
+    
+    def _generate_comparison(self, results: Dict) -> str:
+        """Generate comparison conclusion"""
+        symbols = list(results.keys())
+        if len(symbols) != 2:
+            return "Insufficient comparison data"
+        
+        stock1, stock2 = symbols[0], symbols[1]
+        data1, data2 = results[stock1], results[stock2]
+        
+        comparisons = []
+        
+        # Price comparison
+        price1 = data1.get('current_price', 0)
+        price2 = data2.get('current_price', 0)
+        if price1 and price2:
+            if price1 > price2:
+                comparisons.append(f"{stock1} trades higher (${price1:.2f} vs ${price2:.2f})")
+            else:
+                comparisons.append(f"{stock2} trades higher (${price2:.2f} vs ${price1:.2f})")
+        
+        # PE comparison
+        pe1 = data1['fundamental'].get('pe_ratio')
+        pe2 = data2['fundamental'].get('pe_ratio')
+        if pe1 and pe2:
+            if pe1 < pe2:
+                comparisons.append(f"{stock1} has lower PE, potentially better value ({pe1:.1f} vs {pe2:.1f})")
+            else:
+                comparisons.append(f"{stock2} has lower PE, potentially better value ({pe2:.1f} vs {pe1:.1f})")
+        
+        # RSI comparison
+        rsi1 = data1['technical'].get('rsi', 50)
+        rsi2 = data2['technical'].get('rsi', 50)
+        if abs(rsi1 - 50) < abs(rsi2 - 50):
+            comparisons.append(f"{stock1} RSI closer to neutral, more stable technically")
+        else:
+            comparisons.append(f"{stock2} RSI closer to neutral, more stable technically")
+        
+        return " | ".join(comparisons)
+    
+    def _backtest_sma_crossover(self, symbol: str, data: pd.DataFrame) -> Dict:
+        """SMA crossover strategy backtest"""
+        close = data['Close']
+        sma_20 = close.rolling(20).mean()
+        sma_50 = close.rolling(50).mean()
+        
+        # Generate signals
+        signals = (sma_20 > sma_50).astype(int)
+        positions = signals.diff()
+        
+        # Simplified return calculation
+        returns = close.pct_change()
+        strategy_returns = signals.shift(1) * returns
+        
+        total_return = (1 + strategy_returns).prod() - 1
+        volatility = strategy_returns.std() * np.sqrt(252)
+        sharpe = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252) if strategy_returns.std() > 0 else 0
+        
+        return {
+            "symbol": symbol,
+            "strategy": "SMA Crossover Strategy",
+            "total_return": total_return,
+            "volatility": volatility,
+            "sharpe_ratio": sharpe,
+            "trades": len(positions[positions != 0])
+        }
+    
+    def _backtest_rsi(self, symbol: str, data: pd.DataFrame) -> Dict:
+        """RSI strategy backtest"""
+        close = data['Close']
+        
+        # Calculate RSI
+        delta = close.diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        # Generate signals
+        signals = pd.Series(0, index=data.index)
+        signals[rsi < 30] = 1  # Oversold buy
+        signals[rsi > 70] = 0  # Overbought sell
+        
+        returns = close.pct_change()
+        strategy_returns = signals.shift(1) * returns
+        
+        total_return = (1 + strategy_returns).prod() - 1
+        volatility = strategy_returns.std() * np.sqrt(252)
+        sharpe = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252) if strategy_returns.std() > 0 else 0
+        
+        return {
+            "symbol": symbol,
+            "strategy": "RSI Strategy",
+            "total_return": total_return,
+            "volatility": volatility,
+            "sharpe_ratio": sharpe,
+            "trades": len(signals[signals.diff() != 0])
+        }
+    
+    def _meets_criteria(self, fundamental: Dict, technical: Dict, criteria: Dict) -> bool:
+        """Check if meets screening criteria"""
+        if criteria.get('type') == 'dividend':
+            dividend_yield = fundamental.get('dividend_yield', 0)
+            return dividend_yield and dividend_yield > 0.03
+        
+        elif criteria.get('type') == 'growth':
+            revenue_growth = fundamental.get('revenue_growth', 0)
+            return revenue_growth and revenue_growth > 0.15
+        
+        elif criteria.get('type') == 'value':
+            pe = fundamental.get('pe_ratio', 0)
+            return pe and pe < 20
+        
+        elif criteria.get('type') == 'custom':
+            indicator = criteria.get('indicator')
+            operator = criteria.get('operator')
+            value = criteria.get('value')
+            
+            if indicator in ['PE', 'P/E']:
+                actual_value = fundamental.get('pe_ratio')
+            elif indicator in ['PB', 'P/B']:
+                actual_value = fundamental.get('pb_ratio')
+            elif indicator == 'RSI':
+                actual_value = technical.get('rsi')
+            elif indicator == 'PRICE':
+                actual_value = technical.get('current_price')
+            else:
+                return False
+            
+            if actual_value is None:
+                return False
+            
+            if operator == '>':
+                return actual_value > value
+            elif operator == '<':
+                return actual_value < value
+            elif operator == '=':
+                return abs(actual_value - value) < 0.1
+            
+        return True
+    
+    def process_command(self, text: str) -> Dict:
+        """Process user command"""
+        parsed = self.parser.parse_command(text)
+        
+        if parsed['action'] == 'analyze':
+            return self.analyze_stock(parsed['symbol'])
+        
+        elif parsed['action'] == 'compare':
+            return self.compare_stocks(parsed['symbols'])
+        
+        elif parsed['action'] == 'backtest':
+            return self.backtest_strategy(parsed['symbol'], parsed.get('strategy', 'sma_crossover'))
+        
+        elif parsed['action'] == 'screen':
+            return self.screen_stocks(parsed)
+        
+        else:
+            return {
+                "error": "Sorry, I didn't understand your command. Please try these formats:",
+                "examples": [
+                    "analyze AAPL",
+                    "compare AAPL and GOOGL", 
+                    "backtest TSLA RSI strategy",
+                    "screen PE < 20",
+                    "find dividend stocks"
+                ]
+            }
             return "🟢 建议买入 - 技术面和基本面都较为理想"
         elif score >= 2:
             return "🟡 可以关注 - 部分指标表现良好"
@@ -682,7 +875,7 @@ def get_chatbot():
     return QuantGPTChatbot()
 
 def generate_ai_response(result: Dict) -> Dict:
-    """生成AI回复"""
+    """Generate AI response"""
     response = {"role": "assistant", "content": ""}
     
     if "error" in result:
@@ -690,70 +883,74 @@ def generate_ai_response(result: Dict) -> Dict:
             response["content"] = f"""
 {result['error']}
 
-**示例命令：**
+**Example Commands:**
 {chr(10).join(f"• {ex}" for ex in result['examples'])}
 
-**支持的功能：**
-- 📊 **股票分析**: 分析 [股票代码]
-- ⚖️ **股票比较**: 比较 [股票1] 和 [股票2]  
-- 🔬 **策略回测**: 回测 [股票代码] 的 [策略名] 策略
-- 🔍 **股票筛选**: 筛选 [指标] [操作符] [数值] 的股票
-- 🎯 **预设筛选**: 找高分红/成长/价值股票
+**Supported Features:**
+- 📊 **Stock Analysis**: analyze [SYMBOL]
+- ⚖️ **Stock Comparison**: compare [STOCK1] vs [STOCK2]  
+- 🔬 **Strategy Backtest**: backtest [SYMBOL] [STRATEGY] strategy
+- 🔍 **Stock Screening**: screen [INDICATOR] [OPERATOR] [VALUE]
+- 🎯 **Preset Screening**: find dividend/growth/value stocks
 """
         else:
             response["content"] = result['error']
         return response
     
-    # 股票分析结果
+    # Stock analysis results
     if "current_price" in result:
         symbol = result['symbol']
         name = result['name']
         price = result['current_price']
         
         response["content"] = f"""
-## 📊 {symbol} ({name}) 分析报告
+## 📊 {symbol} ({name}) Analysis Report
 
-### 💰 基本信息
-- **当前价格**: ${price:.2f}
-- **行业**: {result['fundamental'].get('sector', 'N/A')}
+### 💰 Basic Information
+- **Current Price**: ${price:.2f}
+- **Sector**: {result['fundamental'].get('sector', 'N/A')}
 """
         
-        # 技术指标
+        # Technical indicators
         tech = result['technical']
         if tech:
+            rsi_val = tech.get('rsi', 50)
+            rsi_status = "(Oversold)" if rsi_val < 30 else "(Overbought)" if rsi_val > 70 else "(Normal)"
+            trend = "Bullish" if tech.get('sma_20', 0) > tech.get('sma_50', 0) else "Bearish"
+            
             response["content"] += f"""
-### 📈 技术指标
-- **RSI**: {tech.get('rsi', 'N/A'):.1f} {'(超卖)' if tech.get('rsi', 50) < 30 else '(超买)' if tech.get('rsi', 50) > 70 else '(正常)'}
+### 📈 Technical Indicators
+- **RSI**: {rsi_val:.1f} {rsi_status}
 - **SMA 20**: ${tech.get('sma_20', 0):.2f}
 - **SMA 50**: ${tech.get('sma_50', 0):.2f}
-- **趋势**: {'看涨' if tech.get('sma_20', 0) > tech.get('sma_50', 0) else '看跌'}
+- **Trend**: {trend}
 """
         
-        # 基本面指标
+        # Fundamental indicators
         fund = result['fundamental']
         if fund.get('pe_ratio'):
             response["content"] += f"""
-### 💎 基本面指标
-- **PE比率**: {fund['pe_ratio']:.2f}
-- **PB比率**: {fund.get('pb_ratio', 'N/A')}
-- **ROE**: {fund.get('roe', 0)*100:.1f}% (如果有数据)
-- **股息率**: {fund.get('dividend_yield', 0)*100:.2f}% (如果有数据)
+### 💎 Fundamental Indicators
+- **PE Ratio**: {fund['pe_ratio']:.2f}
+- **PB Ratio**: {fund.get('pb_ratio', 'N/A')}
+- **ROE**: {fund.get('roe', 0)*100:.1f}% (if available)
+- **Dividend Yield**: {fund.get('dividend_yield', 0)*100:.2f}% (if available)
 """
         
-        # AI信号
+        # AI signals
         if result.get('signals'):
             response["content"] += f"""
-### 🚨 关键信号
+### 🚨 Key Signals
 {chr(10).join(f"• {signal}" for signal in result['signals'])}
 """
         
-        # 投资建议
+        # Investment recommendation
         response["content"] += f"""
-### 🎯 AI投资建议
-{result.get('recommendation', '建议观望')}
+### 🎯 AI Investment Recommendation
+{result.get('recommendation', 'Hold/Watch')}
 """
         
-        # 生成价格图表
+        # Generate price chart
         data = st.session_state.chatbot.core.get_stock_data(symbol)
         if not data.empty:
             fig = go.Figure()
@@ -761,11 +958,11 @@ def generate_ai_response(result: Dict) -> Dict:
                 x=data.index,
                 y=data['Close'],
                 mode='lines',
-                name=f'{symbol} 股价',
+                name=f'{symbol} Price',
                 line=dict(color='#2563eb', width=2)
             ))
             
-            # 添加移动平均线
+            # Add moving averages
             if len(data) >= 20:
                 sma_20 = data['Close'].rolling(20).mean()
                 fig.add_trace(go.Scatter(
@@ -777,49 +974,49 @@ def generate_ai_response(result: Dict) -> Dict:
                 ))
             
             fig.update_layout(
-                title=f'{symbol} 股价走势图',
-                xaxis_title='日期',
-                yaxis_title='价格 ($)',
+                title=f'{symbol} Price Chart',
+                xaxis_title='Date',
+                yaxis_title='Price ($)',
                 height=400
             )
             
             response["chart_data"] = fig
     
-    # 股票比较结果
+    # Stock comparison results
     elif "comparison" in result:
         symbols = result['symbols']
         analyses = result['analyses']
         
         response["content"] = f"""
-## ⚖️ {' vs '.join(symbols)} 对比分析
+## ⚖️ {' vs '.join(symbols)} Comparison Analysis
 
-### 📊 对比结论
+### 📊 Comparison Summary
 {result['comparison']}
 
-### 📋 详细对比
+### 📋 Detailed Comparison
 """
         
-        # 创建对比表格
+        # Create comparison table
         comparison_data = []
         for symbol, analysis in analyses.items():
             comparison_data.append({
-                "股票": symbol,
-                "名称": analysis.get('name', symbol),
-                "当前价格": f"${analysis.get('current_price', 0):.2f}",
-                "PE比率": analysis['fundamental'].get('pe_ratio', 'N/A'),
+                "Stock": symbol,
+                "Name": analysis.get('name', symbol),
+                "Current Price": f"${analysis.get('current_price', 0):.2f}",
+                "PE Ratio": analysis['fundamental'].get('pe_ratio', 'N/A'),
                 "RSI": f"{analysis['technical'].get('rsi', 50):.1f}",
-                "建议": analysis.get('recommendation', '观望')
+                "Recommendation": analysis.get('recommendation', 'Hold')
             })
         
         comparison_df = pd.DataFrame(comparison_data)
         response["table_data"] = comparison_df
         
-        # 生成对比图表
+        # Generate comparison chart
         fig = go.Figure()
         for symbol, analysis in analyses.items():
             data = st.session_state.chatbot.core.get_stock_data(symbol)
             if not data.empty:
-                # 标准化价格 (以第一天为基准)
+                # Normalize prices (base = first day)
                 normalized_price = data['Close'] / data['Close'].iloc[0] * 100
                 fig.add_trace(go.Scatter(
                     x=data.index,
@@ -830,15 +1027,15 @@ def generate_ai_response(result: Dict) -> Dict:
                 ))
         
         fig.update_layout(
-            title=f'{" vs ".join(symbols)} 价格表现对比 (标准化)',
-            xaxis_title='日期',
-            yaxis_title='相对表现 (%)',
+            title=f'{" vs ".join(symbols)} Performance Comparison (Normalized)',
+            xaxis_title='Date',
+            yaxis_title='Relative Performance (%)',
             height=400
         )
         
         response["chart_data"] = fig
     
-    # 回测结果
+    # Backtest results
     elif "strategy" in result:
         symbol = result['symbol']
         strategy = result['strategy']
@@ -846,70 +1043,86 @@ def generate_ai_response(result: Dict) -> Dict:
         sharpe = result['sharpe_ratio']
         
         response["content"] = f"""
-## 🔬 {symbol} - {strategy} 回测报告
+## 🔬 {symbol} - {strategy} Backtest Report
 
-### 📈 绩效指标
-- **总收益率**: {total_return:.2%}
-- **年化波动率**: {result.get('volatility', 0):.2%}
-- **夏普比率**: {sharpe:.3f}
-- **交易次数**: {result.get('trades', 0)}
+### 📈 Performance Metrics
+- **Total Return**: {total_return:.2%}
+- **Annualized Volatility**: {result.get('volatility', 0):.2%}
+- **Sharpe Ratio**: {sharpe:.3f}
+- **Number of Trades**: {result.get('trades', 0)}
 
-### 🎯 策略评估
+### 🎯 Strategy Evaluation
 """
         
         if sharpe > 1:
-            response["content"] += "🟢 **优秀策略** - 夏普比率>1，风险调整后收益良好"
+            response["content"] += "🟢 **Excellent Strategy** - Sharpe ratio >1, good risk-adjusted returns"
         elif sharpe > 0.5:
-            response["content"] += "🟡 **可接受策略** - 夏普比率>0.5，有一定投资价值"
+            response["content"] += "🟡 **Acceptable Strategy** - Sharpe ratio >0.5, has investment value"
         elif sharpe > 0:
-            response["content"] += "🟠 **一般策略** - 夏普比率>0，但收益有限"
+            response["content"] += "🟠 **Average Strategy** - Sharpe ratio >0, but limited returns"
         else:
-            response["content"] += "🔴 **不推荐策略** - 夏普比率<0，风险大于收益"
+            response["content"] += "🔴 **Not Recommended** - Sharpe ratio <0, risk exceeds returns"
         
         response["content"] += f"""
 
-### 📋 策略说明
+### 📋 Strategy Description
 """
         if "SMA" in strategy:
-            response["content"] += "**移动平均交叉策略**: 当短期均线(20日)上穿长期均线(50日)时买入，下穿时卖出"
+            response["content"] += "**SMA Crossover Strategy**: Buy when short-term MA (20-day) crosses above long-term MA (50-day), sell when it crosses below"
         elif "RSI" in strategy:
-            response["content"] += "**RSI策略**: 当RSI<30时买入(超卖)，RSI>70时卖出(超买)"
+            response["content"] += "**RSI Strategy**: Buy when RSI<30 (oversold), sell when RSI>70 (overbought)"
     
-    # 筛选结果
+    # Screening results
     elif "results" in result:
         criteria = result['criteria']
         results = result['results']
         count = result['count']
         
         response["content"] = f"""
-## 🔍 股票筛选结果
+## 🔍 Stock Screening Results
 
-### 📊 筛选条件
+### 📊 Screening Criteria
 """
         
         if criteria.get('type') == 'dividend':
-            response["content"] += "- **筛选类型**: 高分红股票 (股息率 > 3%)"
+            response["content"] += "- **Screen Type**: High Dividend Stocks (Dividend Yield > 3%)"
         elif criteria.get('type') == 'growth':
-            response["content"] += "- **筛选类型**: 成长股票 (营收增长 > 15%)"
+            response["content"] += "- **Screen Type**: Growth Stocks (Revenue Growth > 15%)"
         elif criteria.get('type') == 'value':
-            response["content"] += "- **筛选类型**: 价值股票 (PE < 20)"
+            response["content"] += "- **Screen Type**: Value Stocks (PE < 20)"
         elif criteria.get('type') == 'custom':
             indicator = criteria.get('indicator')
             operator = criteria.get('operator')
             value = criteria.get('value')
-            response["content"] += f"- **筛选条件**: {indicator} {operator} {value}"
+            response["content"] += f"- **Screen Condition**: {indicator} {operator} {value}"
         
         response["content"] += f"""
 
-### 📋 筛选结果 (共找到 {count} 只股票)
+### 📋 Screening Results (Found {count} stocks)
 """
         
         if results:
-            # 创建结果表格
+            # Create results table
             results_data = []
-            for stock in results[:10]:  # 显示前10只
+            for stock in results[:10]:  # Show top 10
                 results_data.append({
-                    "股票代码": stock['symbol'],
+                    "Symbol": stock['symbol'],
+                    "Company Name": stock.get('name', stock['symbol']),
+                    "Current Price": f"${stock.get('price', 0):.2f}" if stock.get('price') else 'N/A',
+                    "PE Ratio": f"{stock.get('pe_ratio', 0):.2f}" if stock.get('pe_ratio') else 'N/A',
+                    "RSI": f"{stock.get('rsi', 50):.1f}" if stock.get('rsi') else 'N/A',
+                    "Sector": stock.get('sector', 'N/A')
+                })
+            
+            results_df = pd.DataFrame(results_data)
+            response["table_data"] = results_df
+            
+            if count > 10:
+                response["content"] += f"\n*Showing top 10 stocks, found {count} stocks matching criteria*"
+        else:
+            response["content"] += "\n❌ No stocks found matching criteria, consider adjusting filters"
+    
+    return response票代码": stock['symbol'],
                     "公司名称": stock.get('name', stock['symbol']),
                     "当前价格": f"${stock.get('price', 0):.2f}" if stock.get('price') else 'N/A',
                     "PE比率": f"{stock.get('pe_ratio', 0):.2f}" if stock.get('pe_ratio') else 'N/A',
@@ -938,7 +1151,7 @@ if "chatbot" not in st.session_state:
 st.markdown("""
 <div class="header">
     <h1>🤖 QuantGPT</h1>
-    <p style="color: #6b7280; font-size: 1.1rem;">AI量化交易助手 - 专业的股票分析与交易策略平台</p>
+    <p style="color: #6b7280; font-size: 1.1rem;">AI Quantitative Trading Assistant - Professional Stock Analysis & Trading Strategy Platform</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -946,32 +1159,32 @@ st.markdown("""
 st.markdown("""
 <div class="status-indicator">
     <span>🟢</span>
-    <span>系统运行正常 | AI模型已加载 | 数据连接正常</span>
+    <span>System Online | AI Model Loaded | Data Connection Active</span>
 </div>
 """, unsafe_allow_html=True)
 
 # 示例命令 (如果没有历史消息)
 if not st.session_state.messages:
-    st.markdown("### 💡 试试这些命令:")
+    st.markdown("### 💡 Try these commands:")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("📊 分析 AAPL", key="ex1"):
-            st.session_state.messages.append({"role": "user", "content": "分析 AAPL"})
+        if st.button("📊 Analyze AAPL", key="ex1"):
+            st.session_state.messages.append({"role": "user", "content": "analyze AAPL"})
             st.rerun()
         
-        if st.button("🔍 筛选 PE < 15 的股票", key="ex2"):
-            st.session_state.messages.append({"role": "user", "content": "筛选 PE < 15 的股票"})
+        if st.button("🔍 Screen PE < 15 stocks", key="ex2"):
+            st.session_state.messages.append({"role": "user", "content": "screen PE < 15"})
             st.rerun()
     
     with col2:
-        if st.button("⚖️ 比较 AAPL 和 GOOGL", key="ex3"):
-            st.session_state.messages.append({"role": "user", "content": "比较 AAPL 和 GOOGL"})
+        if st.button("⚖️ Compare AAPL vs GOOGL", key="ex3"):
+            st.session_state.messages.append({"role": "user", "content": "compare AAPL vs GOOGL"})
             st.rerun()
         
-        if st.button("🔬 回测 TSLA 的RSI策略", key="ex4"):
-            st.session_state.messages.append({"role": "user", "content": "回测 TSLA 的RSI策略"})
+        if st.button("🔬 Backtest TSLA RSI strategy", key="ex4"):
+            st.session_state.messages.append({"role": "user", "content": "backtest TSLA RSI strategy"})
             st.rerun()
 
 # 显示聊天历史
@@ -979,7 +1192,7 @@ for message in st.session_state.messages:
     if message["role"] == "user":
         st.markdown(f"""
         <div class="user-message">
-            <strong>🧑‍💼 您:</strong><br/>
+            <strong>👤 You:</strong><br/>
             {message["content"]}
         </div>
         """, unsafe_allow_html=True)
@@ -1003,12 +1216,12 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # 输入框
-st.markdown("### 💬 与QuantGPT对话")
+st.markdown("### 💬 Chat with QuantGPT")
 
 # 创建输入框
 user_input = st.text_input(
-    "输入指令",
-    placeholder="请输入您的指令，例如：分析 AAPL，比较 AAPL 和 GOOGL，筛选 PE < 20 的股票...",
+    "Enter Command",
+    placeholder="Enter your command, e.g.: analyze AAPL, compare AAPL vs GOOGL, screen PE < 20...",
     key="user_input",
     label_visibility="collapsed"
 )
@@ -1016,7 +1229,7 @@ user_input = st.text_input(
 # 发送按钮
 col1, col2 = st.columns([6, 1])
 with col2:
-    send_button = st.button("发送", type="primary", use_container_width=True)
+    send_button = st.button("Send", type="primary", use_container_width=True)
 
 # 处理用户输入
 if send_button and user_input.strip():
@@ -1024,7 +1237,7 @@ if send_button and user_input.strip():
     st.session_state.messages.append({"role": "user", "content": user_input})
     
     # 显示思考状态
-    with st.spinner("🤖 QuantGPT正在思考..."):
+    with st.spinner("🤖 QuantGPT is thinking..."):
         try:
             # 处理命令
             result = st.session_state.chatbot.process_command(user_input)
@@ -1038,7 +1251,7 @@ if send_button and user_input.strip():
         except Exception as e:
             error_response = {
                 "role": "assistant",
-                "content": f"抱歉，处理您的请求时出现了错误：{str(e)}\n\n请检查网络连接或稍后重试。"
+                "content": f"Sorry, an error occurred while processing your request: {str(e)}\n\nPlease check your network connection or try again later."
             }
             st.session_state.messages.append(error_response)
     
@@ -1047,64 +1260,64 @@ if send_button and user_input.strip():
 
 # 清除对话历史按钮
 if st.session_state.messages:
-    if st.button("🗑️ 清除对话历史", key="clear_chat"):
+    if st.button("🗑️ Clear Chat History", key="clear_chat"):
         st.session_state.messages = []
         st.rerun()
 
 # 侧边栏帮助信息
 with st.sidebar:
-    st.markdown("### 📚 使用指南")
+    st.markdown("### 📚 User Guide")
     
     st.markdown("""
-    **🔍 股票分析**
-    - `分析 AAPL`
-    - `帮我看看 GOOGL`
-    - `TSLA 怎么样`
+    **🔍 Stock Analysis**
+    - `analyze AAPL`
+    - `tell me about GOOGL`
+    - `how is TSLA`
     
-    **⚖️ 股票对比**
-    - `比较 AAPL 和 GOOGL`
+    **⚖️ Stock Comparison**
+    - `compare AAPL and GOOGL`
     - `TSLA vs NVDA`
-    - `对比 META 和 NFLX`
+    - `compare META with NFLX`
     
-    **🔬 策略回测**
-    - `回测 AAPL 的SMA策略`
-    - `测试 TSLA 的RSI策略`
-    - `帮我回测 MSFT`
+    **🔬 Strategy Backtest**
+    - `backtest AAPL SMA strategy`
+    - `test TSLA RSI strategy`
+    - `backtest MSFT`
     
-    **🎯 股票筛选**
-    - `筛选 PE < 20 的股票`
-    - `找 RSI > 70 的股票`
-    - `筛选高分红股票`
-    - `找成长股票`
-    - `找价值股票`
+    **🎯 Stock Screening**
+    - `screen PE < 20`
+    - `find RSI > 70 stocks`
+    - `screen dividend stocks`
+    - `find growth stocks`
+    - `find value stocks`
     """)
     
     st.markdown("---")
     
-    st.markdown("### ⚠️ 风险提示")
+    st.markdown("### ⚠️ Risk Disclaimer")
     st.markdown("""
-    - 本工具仅供参考，不构成投资建议
-    - 股市有风险，投资需谨慎
-    - 请结合自身风险承受能力做决策
-    - 历史表现不代表未来收益
+    - This tool is for reference only, not investment advice
+    - Stock markets involve risks, invest cautiously
+    - Consider your risk tolerance before making decisions
+    - Past performance doesn't guarantee future returns
     """)
     
     st.markdown("---")
     
-    st.markdown("### 📊 数据来源")
+    st.markdown("### 📊 Data Sources")
     st.markdown("""
-    - **股价数据**: Yahoo Finance
-    - **技术指标**: 实时计算
-    - **AI分析**: 基于量化模型
-    - **更新频率**: 实时
+    - **Stock Data**: Yahoo Finance
+    - **Technical Indicators**: Real-time calculation
+    - **AI Analysis**: Based on quantitative models
+    - **Update Frequency**: Real-time
     """)
 
 # 页脚
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #6b7280; padding: 2rem;'>
-    <p><strong>🤖 QuantGPT v2.0</strong> - AI驱动的量化交易助手</p>
-    <p>由专业量化团队开发 | 24/7 为您的投资决策提供智能支持</p>
-    <p><small>⚠️ 投资有风险，本工具仅供参考，不构成投资建议</small></p>
+    <p><strong>🤖 QuantGPT v2.0</strong> - AI-Powered Quantitative Trading Assistant</p>
+    <p>Developed by Professional Quant Team | 24/7 Intelligent Support for Your Investment Decisions</p>
+    <p><small>⚠️ Investment involves risks. This tool is for reference only and does not constitute investment advice.</small></p>
 </div>
 """, unsafe_allow_html=True)
