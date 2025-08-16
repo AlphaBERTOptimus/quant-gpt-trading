@@ -1,1337 +1,1305 @@
-import streamlit as st
+# =====================================================
+# QuantGPT - 完整AI量化金融平台
+# 集成功能：AI分析 + 策略回测 + 实时筛选 + 基本面分析 + 行业轮动
+# 作者：专业AI量化工程师
+# 目标：打造最全面的个人量化投资平台
+# =====================================================
+
+import warnings
+warnings.filterwarnings('ignore')
+
+import torch
 import pandas as pd
 import numpy as np
+import yfinance as yf
+import matplotlib.pyplot as plt
+import seaborn as sns
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import json
-import re
-import warnings
+import logging
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+import threading
+import time
+import requests
 
-# 尝试导入可选依赖
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-except ImportError:
-    YFINANCE_AVAILABLE = False
+# =====================================================
+# 核心配置类
+# =====================================================
 
-try:
-    import ta
-    TA_AVAILABLE = True
-except ImportError:
-    TA_AVAILABLE = False
+@dataclass
+class QuantGPTConfig:
+    """QuantGPT配置类"""
+    initial_capital: float = 100000.0
+    commission: float = 0.001
+    slippage: float = 0.0005
+    max_position_size: float = 0.2
+    risk_free_rate: float = 0.02
+    
+    # AI模型配置
+    sentiment_model: str = "ProsusAI/finbert"
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    # 数据配置
+    default_period: str = "2y"
+    min_data_points: int = 200
 
-warnings.filterwarnings('ignore')
+@dataclass
+class AdvancedScreeningCriteria:
+    """高级股票筛选条件"""
+    
+    # 基本面指标
+    pe_ratio_min: Optional[float] = None
+    pe_ratio_max: Optional[float] = None
+    pb_ratio_min: Optional[float] = None
+    pb_ratio_max: Optional[float] = None
+    roe_min: Optional[float] = None
+    roa_min: Optional[float] = None
+    debt_to_equity_max: Optional[float] = None
+    current_ratio_min: Optional[float] = None
+    quick_ratio_min: Optional[float] = None
+    
+    # 盈利能力
+    gross_margin_min: Optional[float] = None
+    operating_margin_min: Optional[float] = None
+    net_margin_min: Optional[float] = None
+    
+    # 成长性指标
+    revenue_growth_min: Optional[float] = None
+    earnings_growth_min: Optional[float] = None
+    
+    # 股息指标
+    dividend_yield_min: Optional[float] = None
+    payout_ratio_max: Optional[float] = None
+    
+    # 技术指标
+    rsi_min: Optional[float] = None
+    rsi_max: Optional[float] = None
+    macd_signal: Optional[str] = None
+    bollinger_position: Optional[str] = None
+    
+    # 价格和市值
+    price_min: Optional[float] = None
+    price_max: Optional[float] = None
+    market_cap_min: Optional[float] = None
+    market_cap_max: Optional[float] = None
+    
+    # 成交量
+    volume_min: Optional[int] = None
+    avg_volume_ratio_min: Optional[float] = None
+    
+    # 移动平均线条件
+    above_sma_20: Optional[bool] = None
+    above_sma_50: Optional[bool] = None
+    sma_trend: Optional[str] = None
+    
+    # 涨跌幅条件
+    change_percent_min: Optional[float] = None
+    change_percent_max: Optional[float] = None
+    
+    # AI评分条件
+    ai_score_min: Optional[float] = None
+    recommendation_filter: Optional[List[str]] = None
+    
+    # 行业和板块
+    sectors: Optional[List[str]] = None
+    exclude_sectors: Optional[List[str]] = None
+    industries: Optional[List[str]] = None
+    
+    # 地区
+    countries: Optional[List[str]] = None
+    exclude_countries: Optional[List[str]] = None
 
-# 页面配置
-st.set_page_config(
-    page_title="QuantGPT Pro - AI Quantitative Trading Platform",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# =====================================================
+# AI情感分析引擎
+# =====================================================
 
-# OpenQuant风格CSS
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+class AIAnalysisEngine:
+    """AI驱动的金融分析引擎"""
     
-    /* 全局重置 */
-    .main > div {
-        padding: 0;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    
-    .stApp {
-        background: #FAFBFC;
-    }
-    
-    /* 隐藏Streamlit默认元素 */
-    .stApp > header {
-        background: transparent;
-    }
-    
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* 顶部导航栏 */
-    .top-nav {
-        background: white;
-        padding: 1rem 2rem;
-        border-bottom: 1px solid #E5E7EB;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        position: sticky;
-        top: 0;
-        z-index: 1000;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .logo-section {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    
-    .logo {
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: #1F2937;
-        text-decoration: none;
-    }
-    
-    .logo-subtitle {
-        font-size: 0.875rem;
-        color: #6B7280;
-        font-weight: 500;
-    }
-    
-    .nav-status {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-    }
-    
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    
-    .status-online {
-        background: #DCFCE7;
-        color: #15803D;
-    }
-    
-    .status-offline {
-        background: #FEE2E2;
-        color: #DC2626;
-    }
-    
-    .status-warning {
-        background: #FEF3C7;
-        color: #D97706;
-    }
-    
-    /* 主要内容区域 */
-    .main-container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 2rem;
-    }
-    
-    /* 英雄区域 */
-    .hero-section {
-        background: white;
-        border-radius: 12px;
-        padding: 3rem 2rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        border: 1px solid #E5E7EB;
-    }
-    
-    .hero-title {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #1F2937;
-        margin-bottom: 1rem;
-        line-height: 1.2;
-    }
-    
-    .hero-subtitle {
-        font-size: 1.125rem;
-        color: #6B7280;
-        margin-bottom: 2rem;
-        max-width: 600px;
-        margin-left: auto;
-        margin-right: auto;
-        line-height: 1.6;
-    }
-    
-    .feature-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        margin-top: 2rem;
-    }
-    
-    .feature-card {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 1.5rem;
-        text-align: center;
-        transition: all 0.2s ease;
-    }
-    
-    .feature-card:hover {
-        border-color: #CBD5E1;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    
-    .feature-icon {
-        font-size: 2rem;
-        margin-bottom: 1rem;
-    }
-    
-    .feature-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #1F2937;
-        margin-bottom: 0.5rem;
-    }
-    
-    .feature-desc {
-        font-size: 0.875rem;
-        color: #6B7280;
-        line-height: 1.5;
-    }
-    
-    /* 聊天界面 */
-    .chat-container {
-        background: white;
-        border-radius: 12px;
-        border: 1px solid #E5E7EB;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        margin-bottom: 2rem;
-        overflow: hidden;
-    }
-    
-    .chat-header {
-        background: #F9FAFB;
-        border-bottom: 1px solid #E5E7EB;
-        padding: 1rem 1.5rem;
-        font-weight: 600;
-        color: #1F2937;
-        font-size: 0.875rem;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .chat-messages {
-        padding: 1.5rem;
-        min-height: 400px;
-        max-height: 600px;
-        overflow-y: auto;
-    }
-    
-    .message {
-        margin-bottom: 1.5rem;
-        max-width: 100%;
-    }
-    
-    .message.user {
-        display: flex;
-        justify-content: flex-end;
-    }
-    
-    .message.assistant {
-        display: flex;
-        justify-content: flex-start;
-    }
-    
-    .message-content {
-        max-width: 80%;
-        padding: 1rem 1.25rem;
-        border-radius: 12px;
-        font-size: 0.9rem;
-        line-height: 1.6;
-    }
-    
-    .message.user .message-content {
-        background: #3B82F6;
-        color: white;
-        border-bottom-right-radius: 4px;
-    }
-    
-    .message.assistant .message-content {
-        background: #F3F4F6;
-        color: #1F2937;
-        border-bottom-left-radius: 4px;
-        border: 1px solid #E5E7EB;
-    }
-    
-    .message-avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.875rem;
-        margin: 0 12px;
-        flex-shrink: 0;
-    }
-    
-    .user-avatar {
-        background: #3B82F6;
-        color: white;
-    }
-    
-    .assistant-avatar {
-        background: #10B981;
-        color: white;
-    }
-    
-    /* 输入框 */
-    .stChatInput > div > div > div > div {
-        border: 1px solid #D1D5DB !important;
-        border-radius: 8px !important;
-        background: white !important;
-    }
-    
-    .stChatInput > div > div > div > div:focus-within {
-        border-color: #3B82F6 !important;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-    }
-    
-    /* 按钮样式 */
-    .stButton > button {
-        background: #3B82F6;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 0.625rem 1.25rem;
-        font-weight: 500;
-        font-size: 0.875rem;
-        transition: all 0.2s ease;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-    
-    .stButton > button:hover {
-        background: #2563EB;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    
-    .secondary-button {
-        background: white !important;
-        color: #374151 !important;
-        border: 1px solid #D1D5DB !important;
-    }
-    
-    .secondary-button:hover {
-        background: #F9FAFB !important;
-        border-color: #9CA3AF !important;
-    }
-    
-    /* 侧边栏 */
-    .sidebar .block-container {
-        background: white;
-        border-radius: 12px;
-        border: 1px solid #E5E7EB;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-    
-    .sidebar-section {
-        margin-bottom: 2rem;
-    }
-    
-    .sidebar-title {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: #1F2937;
-        margin-bottom: 1rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    
-    /* 选择框 */
-    .stSelectbox > div > div {
-        border: 1px solid #D1D5DB !important;
-        border-radius: 8px !important;
-        background: white !important;
-    }
-    
-    /* 指标卡片 */
-    .metrics-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 1.5rem 0;
-    }
-    
-    .metric-card {
-        background: white;
-        border: 1px solid #E5E7EB;
-        border-radius: 8px;
-        padding: 1.25rem;
-        text-align: center;
-        transition: all 0.2s ease;
-    }
-    
-    .metric-card:hover {
-        border-color: #CBD5E1;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    
-    .metric-value {
-        font-size: 1.875rem;
-        font-weight: 700;
-        color: #1F2937;
-        margin-bottom: 0.25rem;
-    }
-    
-    .metric-label {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: #6B7280;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    
-    .metric-positive {
-        color: #10B981;
-    }
-    
-    .metric-negative {
-        color: #EF4444;
-    }
-    
-    /* 图表容器 */
-    .chart-container {
-        background: white;
-        border: 1px solid #E5E7EB;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-    
-    .chart-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: #1F2937;
-        margin-bottom: 1rem;
-    }
-    
-    /* 结果卡片 */
-    .result-card {
-        background: white;
-        border: 1px solid #E5E7EB;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-    
-    .result-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 1rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid #E5E7EB;
-    }
-    
-    .result-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: #1F2937;
-    }
-    
-    .result-badge {
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-    
-    .badge-success {
-        background: #DCFCE7;
-        color: #15803D;
-    }
-    
-    .badge-warning {
-        background: #FEF3C7;
-        color: #D97706;
-    }
-    
-    .badge-error {
-        background: #FEE2E2;
-        color: #DC2626;
-    }
-    
-    /* 响应式设计 */
-    @media (max-width: 768px) {
-        .main-container {
-            padding: 1rem;
-        }
+    def __init__(self, config: QuantGPTConfig):
+        self.config = config
+        self.setup_models()
         
-        .top-nav {
-            padding: 1rem;
-        }
+    def setup_models(self):
+        """初始化AI模型"""
+        print("🤖 正在加载AI模型...")
         
-        .hero-section {
-            padding: 2rem 1rem;
-        }
-        
-        .hero-title {
-            font-size: 2rem;
-        }
-        
-        .feature-grid {
-            grid-template-columns: 1fr;
-            gap: 1rem;
-        }
-        
-        .message-content {
-            max-width: 90%;
-        }
-    }
+        try:
+            self.sentiment_analyzer = pipeline(
+                "sentiment-analysis",
+                model=self.config.sentiment_model,
+                return_all_scores=True,
+                device=0 if self.config.device == "cuda" else -1
+            )
+            print("✅ FinBERT情感分析模型加载成功")
+            
+        except Exception as e:
+            print(f"⚠️ AI模型加载失败，使用备用方案: {e}")
+            self.sentiment_analyzer = None
     
-    /* 滚动条样式 */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #F1F5F9;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: #CBD5E1;
-        border-radius: 3px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: #94A3B8;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# 多语言支持
-LANGUAGES = {
-    "中文": {
-        "title": "QuantGPT Pro",
-        "subtitle": "专业AI量化交易分析平台",
-        "hero_title": "智能量化交易分析",
-        "hero_desc": "使用AI驱动的专业量化分析工具，获得数据驱动的投资洞察",
-        "chat_title": "AI量化分析师",
-        "data_source": "数据源",
-        "technical_indicators": "技术指标",
-        "system_status": "系统状态",
-        "real_time": "实时数据",
-        "simulated": "模拟数据",
-        "complete": "完整版",
-        "basic": "基础版",
-        "online": "在线",
-        "quick_analysis": "快速分析",
-        "select_stock": "选择股票",
-        "select_strategy": "选择策略",
-        "start_analysis": "开始分析",
-        "clear_history": "清除历史",
-        "trend_strategy": "趋势策略",
-        "mean_reversion": "均值回归",
-        "momentum_strategy": "动量策略",
-        "examples": "示例查询",
-        "features": {
-            "intelligent": {
-                "title": "智能分析",
-                "desc": "AI驱动的量化策略分析"
-            },
-            "professional": {
-                "title": "专业回测",
-                "desc": "完整的回测指标和风险评估"
-            },
-            "realtime": {
-                "title": "实时数据",
-                "desc": "获取最新的市场数据"
-            },
-            "multilingual": {
-                "title": "中英双语",
-                "desc": "支持中文和英文交互"
+    def analyze_sentiment(self, text: str) -> Dict:
+        """分析金融文本情感"""
+        if not self.sentiment_analyzer:
+            return {"sentiment": "neutral", "confidence": 0.5, "error": "Model not available"}
+            
+        try:
+            result = self.sentiment_analyzer(text)
+            best_result = max(result[0], key=lambda x: x['score'])
+            
+            return {
+                "sentiment": best_result['label'],
+                "confidence": best_result['score'],
+                "text_preview": text[:100] + "..." if len(text) > 100 else text,
+                "timestamp": datetime.now().isoformat()
             }
-        },
-        "welcome": """👋 **欢迎使用QuantGPT Pro！**
-
-我是您的专业AI量化分析师，可以帮助您：
-
-**🎯 核心功能**
-• **趋势策略** - 双均线交易系统分析
-• **均值回归** - 布林带策略回测
-• **动量策略** - RSI技术指标分析
-
-**📊 专业服务**
-• 完整的量化回测分析
-• 风险调整收益评估
-• 实时交易信号生成
-
-**💬 使用示例**
-• "分析苹果公司的趋势策略"
-• "分析AAPL的trend strategy"
-• "特斯拉的布林带策略分析"
-
-现在开始您的量化分析之旅吧！"""
-    },
-    "English": {
-        "title": "QuantGPT Pro",
-        "subtitle": "Professional AI Quantitative Trading Platform",
-        "hero_title": "Intelligent Quantitative Analysis",
-        "hero_desc": "Get data-driven investment insights with AI-powered professional quantitative analysis tools",
-        "chat_title": "AI Quantitative Analyst",
-        "data_source": "Data Source",
-        "technical_indicators": "Technical Indicators",
-        "system_status": "System Status",
-        "real_time": "Real-time Data",
-        "simulated": "Simulated Data",
-        "complete": "Complete",
-        "basic": "Basic",
-        "online": "Online",
-        "quick_analysis": "Quick Analysis",
-        "select_stock": "Select Stock",
-        "select_strategy": "Select Strategy",
-        "start_analysis": "Start Analysis",
-        "clear_history": "Clear History",
-        "trend_strategy": "Trend Strategy",
-        "mean_reversion": "Mean Reversion",
-        "momentum_strategy": "Momentum Strategy",
-        "examples": "Example Queries",
-        "features": {
-            "intelligent": {
-                "title": "Intelligent Analysis",
-                "desc": "AI-driven quantitative strategy analysis"
+        except Exception as e:
+            return {"sentiment": "neutral", "confidence": 0.5, "error": str(e)}
+    
+    def generate_market_insight(self, symbol: str, price_data: pd.DataFrame, 
+                              news_sentiment: float = 0.5) -> Dict:
+        """生成AI驱动的市场洞察"""
+        
+        # 计算技术指标
+        current_price = price_data['Close'].iloc[-1]
+        prev_price = price_data['Close'].iloc[-2]
+        price_change = (current_price - prev_price) / prev_price
+        
+        # 计算移动平均
+        sma_20 = price_data['Close'].rolling(20).mean().iloc[-1]
+        sma_50 = price_data['Close'].rolling(50).mean().iloc[-1]
+        
+        # 计算RSI
+        delta = price_data['Close'].diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        current_rsi = rsi.iloc[-1]
+        
+        # AI驱动的建议生成
+        sentiment_score = news_sentiment
+        technical_score = 0.5
+        
+        # 技术面评分
+        if current_price > sma_20 > sma_50:
+            technical_score += 0.3
+        if current_rsi < 30:
+            technical_score += 0.2
+        elif current_rsi > 70:
+            technical_score -= 0.2
+            
+        # 综合评分
+        combined_score = (sentiment_score * 0.4 + technical_score * 0.6)
+        
+        # 生成建议
+        if combined_score > 0.7:
+            recommendation = "🟢 强烈买入"
+            reason = "技术面和基本面都显示强劲上涨信号"
+        elif combined_score > 0.6:
+            recommendation = "🟡 买入"
+            reason = "总体趋势积极，建议逢低买入"
+        elif combined_score < 0.3:
+            recommendation = "🔴 卖出"
+            reason = "多重负面信号，建议减仓"
+        elif combined_score < 0.4:
+            recommendation = "🟡 观望"
+            reason = "信号混合，建议等待更明确的方向"
+        else:
+            recommendation = "🟡 持有"
+            reason = "当前趋势不明确，维持现有仓位"
+            
+        return {
+            "symbol": symbol,
+            "current_price": current_price,
+            "price_change_pct": price_change * 100,
+            "technical_indicators": {
+                "sma_20": sma_20,
+                "sma_50": sma_50,
+                "rsi": current_rsi
             },
-            "professional": {
-                "title": "Professional Backtesting",
-                "desc": "Complete backtesting metrics and risk assessment"
+            "ai_scores": {
+                "sentiment_score": sentiment_score,
+                "technical_score": technical_score,
+                "combined_score": combined_score
             },
-            "realtime": {
-                "title": "Real-time Data",
-                "desc": "Access to latest market data"
-            },
-            "multilingual": {
-                "title": "Bilingual Support",
-                "desc": "Chinese and English interaction"
+            "recommendation": recommendation,
+            "reasoning": reason,
+            "confidence": abs(combined_score - 0.5) * 2,
+            "timestamp": datetime.now().isoformat()
+        }
+
+# =====================================================
+# 数据管理器
+# =====================================================
+
+class DataManager:
+    """金融数据管理器"""
+    
+    def __init__(self, config: QuantGPTConfig):
+        self.config = config
+        self.cache = {}
+    
+    def get_stock_data(self, symbol: str, period: str = None, 
+                      start: str = None, end: str = None) -> Optional[pd.DataFrame]:
+        """获取股票数据"""
+        period = period or self.config.default_period
+        cache_key = f"{symbol}_{period}_{start}_{end}"
+        
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        try:
+            ticker = yf.Ticker(symbol)
+            
+            if start and end:
+                start_str = str(start) if not isinstance(start, str) else start
+                end_str = str(end) if not isinstance(end, str) else end
+                data = ticker.history(start=start_str, end=end_str)
+            else:
+                period_str = str(period) if not isinstance(period, str) else period
+                data = ticker.history(period=period_str)
+            
+            if data.empty or len(data) < self.config.min_data_points:
+                print(f"⚠️ {symbol} 数据不足 ({len(data)}点 < {self.config.min_data_points}点)")
+                return None
+                
+            # 数据清洗
+            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                if col in data.columns:
+                    data[col] = pd.to_numeric(data[col], errors='coerce')
+            
+            data = data.dropna()
+            
+            if len(data) < self.config.min_data_points:
+                print(f"⚠️ {symbol} 清洗后数据不足 ({len(data)}点 < {self.config.min_data_points}点)")
+                return None
+            
+            self.cache[cache_key] = data
+            print(f"✅ {symbol} 数据获取成功: {len(data)} 天")
+            return data
+            
+        except Exception as e:
+            print(f"❌ 获取 {symbol} 数据失败: {e}")
+            return None
+    
+    def get_stock_info(self, symbol: str) -> Dict:
+        """获取股票基本信息"""
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            return {
+                "name": info.get("longName", symbol),
+                "sector": info.get("sector", "Unknown"),
+                "industry": info.get("industry", "Unknown"),
+                "market_cap": info.get("marketCap", 0),
+                "pe_ratio": info.get("trailingPE", 0),
+                "dividend_yield": info.get("dividendYield", 0)
             }
-        },
-        "welcome": """👋 **Welcome to QuantGPT Pro!**
+        except:
+            return {"name": symbol, "sector": "Unknown"}
 
-I'm your professional AI quantitative analyst, here to help you with:
+# =====================================================
+# 技术指标计算器
+# =====================================================
 
-**🎯 Core Features**
-• **Trend Strategy** - Moving average trading system analysis
-• **Mean Reversion** - Bollinger Bands strategy backtesting
-• **Momentum Strategy** - RSI technical indicator analysis
-
-**📊 Professional Services**
-• Complete quantitative backtesting analysis
-• Risk-adjusted return evaluation
-• Real-time trading signal generation
-
-**💬 Usage Examples**
-• "Analyze AAPL trend strategy"
-• "分析苹果公司的趋势策略"
-• "Tesla Bollinger Bands strategy analysis"
-
-Start your quantitative analysis journey now!"""
-    }
-}
-
-# 模拟数据生成器
-class MockDataGenerator:
-    @staticmethod
-    def generate_mock_data(symbol, period="2y"):
-        end_date = datetime.now()
-        days = 730 if period == "2y" else 365
-        start_date = end_date - timedelta(days=days)
-        
-        dates = pd.date_range(start_date, end_date, freq='D')
-        np.random.seed(hash(symbol) % 1000)
-        
-        base_price = 100 + (hash(symbol) % 500)
-        returns = np.random.normal(0.001, 0.02, len(dates))
-        prices = [base_price]
-        
-        for ret in returns[1:]:
-            prices.append(prices[-1] * (1 + ret))
-        
-        data = pd.DataFrame(index=dates)
-        data['Close'] = prices
-        data['Open'] = data['Close'].shift(1) * (1 + np.random.normal(0, 0.005, len(data)))
-        data['High'] = np.maximum(data['Open'], data['Close']) * (1 + np.abs(np.random.normal(0, 0.01, len(data))))
-        data['Low'] = np.minimum(data['Open'], data['Close']) * (1 - np.abs(np.random.normal(0, 0.01, len(data))))
-        data['Volume'] = np.random.randint(1000000, 10000000, len(data))
-        
-        return data.dropna()
-
-# 技术指标
 class TechnicalIndicators:
+    """技术指标计算器"""
+    
     @staticmethod
-    def sma(data, window):
+    def calculate_sma(data: pd.Series, window: int) -> pd.Series:
+        """简单移动平均"""
         return data.rolling(window=window).mean()
     
     @staticmethod
-    def rsi(data, window=14):
-        delta = data.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
+    def calculate_ema(data: pd.Series, window: int) -> pd.Series:
+        """指数移动平均"""
+        return data.ewm(span=window, adjust=False).mean()
     
     @staticmethod
-    def bollinger_bands(data, window=20, std_dev=2):
-        sma = data.rolling(window=window).mean()
-        std = data.rolling(window=window).std()
-        upper = sma + (std * std_dev)
-        lower = sma - (std * std_dev)
-        return upper, lower, sma
-
-# 数据获取
-@st.cache_data(ttl=3600)
-def get_stock_data(symbol, period="2y"):
-    if YFINANCE_AVAILABLE:
-        try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period)
-            if not data.empty:
-                return data
-        except:
-            pass
-    return MockDataGenerator.generate_mock_data(symbol, period)
-
-# 策略引擎
-class StrategyEngine:
-    def __init__(self, lang="中文"):
-        self.lang = lang
+    def calculate_rsi(data: pd.Series, window: int = 14) -> pd.Series:
+        """相对强弱指数"""
+        delta = data.diff()
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+        
+        avg_gain = gain.rolling(window=window).mean()
+        avg_loss = loss.rolling(window=window).mean()
+        
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
     
-    def trend_following(self, data, short_window=20, long_window=50):
-        if TA_AVAILABLE:
-            data['SMA_short'] = ta.trend.SMAIndicator(data['Close'], window=short_window).sma_indicator()
-            data['SMA_long'] = ta.trend.SMAIndicator(data['Close'], window=long_window).sma_indicator()
-        else:
-            data['SMA_short'] = TechnicalIndicators.sma(data['Close'], short_window)
-            data['SMA_long'] = TechnicalIndicators.sma(data['Close'], long_window)
+    @staticmethod
+    def calculate_macd(data: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Dict[str, pd.Series]:
+        """MACD指标"""
+        ema_fast = TechnicalIndicators.calculate_ema(data, fast)
+        ema_slow = TechnicalIndicators.calculate_ema(data, slow)
         
-        data['Signal'] = 0
-        data['Signal'][short_window:] = np.where(
-            data['SMA_short'][short_window:] > data['SMA_long'][short_window:], 1, 0
-        )
-        data['Position'] = data['Signal'].diff()
-        
-        if self.lang == "中文":
-            desc = f"双均线趋势策略 ({short_window}日/{long_window}日)"
-        else:
-            desc = f"Moving Average Trend Strategy ({short_window}d/{long_window}d)"
-        
-        return data, desc
-    
-    def mean_reversion(self, data, window=20):
-        if TA_AVAILABLE:
-            bb = ta.volatility.BollingerBands(data['Close'], window=window)
-            data['Upper'] = bb.bollinger_hband()
-            data['Lower'] = bb.bollinger_lband()
-        else:
-            data['Upper'], data['Lower'], data['SMA'] = TechnicalIndicators.bollinger_bands(data['Close'], window)
-        
-        data['Signal'] = np.where(data['Close'] < data['Lower'], 1, 
-                                np.where(data['Close'] > data['Upper'], -1, 0))
-        data['Position'] = data['Signal'].diff()
-        
-        if self.lang == "中文":
-            desc = f"布林带均值回归策略 ({window}日)"
-        else:
-            desc = f"Bollinger Bands Mean Reversion ({window}d)"
-        
-        return data, desc
-    
-    def momentum_strategy(self, data, rsi_window=14):
-        if TA_AVAILABLE:
-            data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=rsi_window).rsi()
-        else:
-            data['RSI'] = TechnicalIndicators.rsi(data['Close'], rsi_window)
-        
-        data['Signal'] = np.where(data['RSI'] > 70, -1, np.where(data['RSI'] < 30, 1, 0))
-        data['Position'] = data['Signal'].diff()
-        
-        if self.lang == "中文":
-            desc = f"RSI动量策略 ({rsi_window}日)"
-        else:
-            desc = f"RSI Momentum Strategy ({rsi_window}d)"
-        
-        return data, desc
-
-# 回测引擎
-class BacktestEngine:
-    def __init__(self, lang="中文"):
-        self.lang = lang
-    
-    def run_backtest(self, data, initial_capital=100000, commission=0.001):
-        data = data.copy()
-        data['Returns'] = data['Close'].pct_change()
-        data['Strategy_Returns'] = data['Signal'].shift(1) * data['Returns']
-        data['Strategy_Returns'] = data['Strategy_Returns'] - (np.abs(data['Position']) * commission)
-        
-        data['Cumulative_Returns'] = (1 + data['Returns']).cumprod()
-        data['Strategy_Cumulative'] = (1 + data['Strategy_Returns']).cumprod()
-        data['Portfolio_Value'] = initial_capital * data['Strategy_Cumulative']
-        
-        return data
-    
-    def calculate_metrics(self, data):
-        strategy_returns = data['Strategy_Returns'].dropna()
-        
-        if len(strategy_returns) == 0:
-            return {"Error": "No valid data" if self.lang == "English" else "无有效数据"}
-        
-        total_return = data['Strategy_Cumulative'].iloc[-1] - 1
-        annual_return = (1 + total_return) ** (252 / len(strategy_returns)) - 1
-        volatility = strategy_returns.std() * np.sqrt(252)
-        sharpe_ratio = annual_return / volatility if volatility != 0 else 0
-        
-        cumulative = data['Strategy_Cumulative']
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
-        max_drawdown = drawdown.min()
-        
-        winning_trades = len(strategy_returns[strategy_returns > 0])
-        total_trades = len(strategy_returns[strategy_returns != 0])
-        win_rate = winning_trades / total_trades if total_trades > 0 else 0
-        
-        if self.lang == "中文":
-            return {
-                "总收益率": f"{total_return:.2%}",
-                "年化收益率": f"{annual_return:.2%}",
-                "夏普比率": f"{sharpe_ratio:.2f}",
-                "最大回撤": f"{max_drawdown:.2%}",
-                "胜率": f"{win_rate:.2%}",
-                "交易次数": total_trades
-            }
-        else:
-            return {
-                "Total Return": f"{total_return:.2%}",
-                "Annual Return": f"{annual_return:.2%}",
-                "Sharpe Ratio": f"{sharpe_ratio:.2f}",
-                "Max Drawdown": f"{max_drawdown:.2%}",
-                "Win Rate": f"{win_rate:.2%}",
-                "Trade Count": total_trades
-            }
-
-# AI分析师
-class BilingualQuantGPTAnalyst:
-    def __init__(self, lang="中文"):
-        self.lang = lang
-        self.strategy_engine = StrategyEngine(lang)
-        self.backtest_engine = BacktestEngine(lang)
-    
-    def detect_language(self, text):
-        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
-        english_chars = len(re.findall(r'[a-zA-Z]', text))
-        return "中文" if chinese_chars > english_chars else "English"
-    
-    def parse_input(self, user_input):
-        detected_lang = self.detect_language(user_input)
-        
-        stocks = re.findall(r'\b[A-Z]{1,5}\b', user_input.upper())
-        
-        chinese_stocks = {
-            "苹果": "AAPL", "苹果公司": "AAPL", "apple": "AAPL",
-            "特斯拉": "TSLA", "tesla": "TSLA",
-            "谷歌": "GOOGL", "google": "GOOGL",
-            "微软": "MSFT", "microsoft": "MSFT",
-            "英伟达": "NVDA", "nvidia": "NVDA",
-            "亚马逊": "AMZN", "amazon": "AMZN"
-        }
-        
-        for chinese_name, symbol in chinese_stocks.items():
-            if chinese_name in user_input.lower():
-                stocks.append(symbol)
-        
-        strategy_keywords = {
-            "趋势": "trend", "均线": "trend", "双均线": "trend", "moving average": "trend", "trend": "trend",
-            "均值回归": "mean", "布林带": "mean", "bollinger": "mean", "mean reversion": "mean",
-            "动量": "momentum", "rsi": "momentum", "momentum": "momentum"
-        }
-        
-        strategy = None
-        for keyword, strat in strategy_keywords.items():
-            if keyword in user_input.lower():
-                strategy = strat
-                break
+        macd = ema_fast - ema_slow
+        signal_line = TechnicalIndicators.calculate_ema(macd, signal)
+        histogram = macd - signal_line
         
         return {
-            "stocks": list(set(stocks)), 
-            "strategy": strategy,
-            "language": detected_lang
+            "macd": macd,
+            "signal": signal_line,
+            "histogram": histogram
         }
     
-    def analyze_stock(self, stock, strategy_type):
-        data = get_stock_data(stock)
+    @staticmethod
+    def calculate_bollinger_bands(data: pd.Series, window: int = 20, num_std: float = 2) -> Dict[str, pd.Series]:
+        """布林带"""
+        sma = TechnicalIndicators.calculate_sma(data, window)
+        std = data.rolling(window=window).std()
         
-        if strategy_type == "trend":
-            data, desc = self.strategy_engine.trend_following(data)
-        elif strategy_type == "mean":
-            data, desc = self.strategy_engine.mean_reversion(data)
-        elif strategy_type == "momentum":
-            data, desc = self.strategy_engine.momentum_strategy(data)
-        else:
-            data, desc = self.strategy_engine.trend_following(data)
+        upper_band = sma + (std * num_std)
+        lower_band = sma - (std * num_std)
         
-        backtest_data = self.backtest_engine.run_backtest(data)
-        metrics = self.backtest_engine.calculate_metrics(backtest_data)
-        
-        if 'analysis_data' not in st.session_state:
-            st.session_state.analysis_data = {}
-        st.session_state.analysis_data[stock] = backtest_data
-        
-        return self.format_result(stock, desc, metrics)
+        return {
+            "upper": upper_band,
+            "middle": sma,
+            "lower": lower_band
+        }
     
-    def format_result(self, stock, description, metrics):
-        if self.lang == "中文":
-            result = f"## 📊 {stock} 量化分析报告\n\n"
-            result += f"**策略描述：** {description}\n\n"
-            result += "**核心指标：**\n"
-        else:
-            result = f"## 📊 {stock} Quantitative Analysis Report\n\n"
-            result += f"**Strategy:** {description}\n\n"
-            result += "**Key Metrics:**\n"
+    @staticmethod
+    def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
+        """为数据添加所有技术指标"""
+        df = df.copy()
+        close = df['Close']
         
-        for metric, value in metrics.items():
-            result += f"• **{metric}**: {value}\n"
+        # 移动平均
+        df['SMA_20'] = TechnicalIndicators.calculate_sma(close, 20)
+        df['SMA_50'] = TechnicalIndicators.calculate_sma(close, 50)
+        df['SMA_200'] = TechnicalIndicators.calculate_sma(close, 200)
+        
+        df['EMA_12'] = TechnicalIndicators.calculate_ema(close, 12)
+        df['EMA_26'] = TechnicalIndicators.calculate_ema(close, 26)
+        
+        # RSI
+        df['RSI'] = TechnicalIndicators.calculate_rsi(close)
+        
+        # MACD
+        macd_data = TechnicalIndicators.calculate_macd(close)
+        df['MACD'] = macd_data['macd']
+        df['MACD_Signal'] = macd_data['signal']
+        df['MACD_Histogram'] = macd_data['histogram']
+        
+        # 布林带
+        bb_data = TechnicalIndicators.calculate_bollinger_bands(close)
+        df['BB_Upper'] = bb_data['upper']
+        df['BB_Middle'] = bb_data['middle']
+        df['BB_Lower'] = bb_data['lower']
+        
+        # 成交量指标
+        df['Volume_SMA'] = TechnicalIndicators.calculate_sma(df['Volume'], 20)
+        
+        return df
+
+# =====================================================
+# 交易策略引擎
+# =====================================================
+
+class StrategyEngine:
+    """交易策略引擎"""
+    
+    def __init__(self, config: QuantGPTConfig):
+        self.config = config
+        
+    def sma_crossover_strategy(self, data: pd.DataFrame, short_window: int = 20, 
+                              long_window: int = 50) -> pd.DataFrame:
+        """移动平均交叉策略"""
+        df = data.copy()
+        df = TechnicalIndicators.add_all_indicators(df)
+        
+        # 生成信号
+        df['Signal'] = 0
+        df['Signal'][short_window:] = np.where(
+            df[f'SMA_{short_window}'][short_window:] > df[f'SMA_{long_window}'][short_window:], 1, 0
+        )
+        df['Position'] = df['Signal'].diff()
+        
+        return df
+    
+    def rsi_strategy(self, data: pd.DataFrame, rsi_oversold: int = 30, 
+                    rsi_overbought: int = 70) -> pd.DataFrame:
+        """RSI策略"""
+        df = data.copy()
+        df = TechnicalIndicators.add_all_indicators(df)
+        
+        # 生成信号
+        df['Signal'] = 0
+        df.loc[df['RSI'] < rsi_oversold, 'Signal'] = 1
+        df.loc[df['RSI'] > rsi_overbought, 'Signal'] = -1
+        df['Position'] = df['Signal'].diff()
+        
+        return df
+    
+    def bollinger_bands_strategy(self, data: pd.DataFrame) -> pd.DataFrame:
+        """布林带均值回归策略"""
+        df = data.copy()
+        df = TechnicalIndicators.add_all_indicators(df)
+        
+        # 生成信号
+        df['Signal'] = 0
+        df.loc[df['Close'] < df['BB_Lower'], 'Signal'] = 1
+        df.loc[df['Close'] > df['BB_Upper'], 'Signal'] = -1
+        df['Position'] = df['Signal'].diff()
+        
+        return df
+    
+    def ai_sentiment_strategy(self, data: pd.DataFrame, ai_engine: AIAnalysisEngine, 
+                             sentiment_threshold: float = 0.6) -> pd.DataFrame:
+        """AI情感驱动策略"""
+        df = data.copy()
+        df = TechnicalIndicators.add_all_indicators(df)
+        
+        # 模拟每日新闻情感
+        np.random.seed(42)
+        df['Sentiment_Score'] = np.random.uniform(0.3, 0.7, len(df))
+        
+        # 生成信号
+        df['Signal'] = 0
+        
+        buy_condition = (
+            (df['Sentiment_Score'] > sentiment_threshold) & 
+            (df['RSI'] < 50) & 
+            (df['Close'] > df['SMA_20'])
+        )
+        df.loc[buy_condition, 'Signal'] = 1
+        
+        sell_condition = (
+            (df['Sentiment_Score'] < (1 - sentiment_threshold)) & 
+            (df['RSI'] > 50)
+        )
+        df.loc[sell_condition, 'Signal'] = -1
+        
+        df['Position'] = df['Signal'].diff()
+        
+        return df
+
+# =====================================================
+# 回测引擎
+# =====================================================
+
+class BacktestEngine:
+    """专业级回测引擎"""
+    
+    def __init__(self, config: QuantGPTConfig):
+        self.config = config
+        self.reset()
+        
+    def reset(self):
+        """重置回测状态"""
+        self.capital = self.config.initial_capital
+        self.positions = 0
+        self.trades = []
+        self.portfolio_history = []
+    
+    def execute_backtest(self, strategy_data: pd.DataFrame, symbol: str) -> Dict:
+        """执行回测"""
+        self.reset()
+        
+        portfolio_values = []
+        cash_history = []
+        position_history = []
+        
+        for i, (date, row) in enumerate(strategy_data.iterrows()):
+            current_price = row['Close']
+            position_change = row.get('Position', 0)
+            
+            # 修复数据类型
+            if isinstance(position_change, pd.Series):
+                position_change = position_change.iloc[0] if not position_change.empty else 0
+            elif not isinstance(position_change, (int, float)):
+                position_change = 0
+            
+            try:
+                position_change = int(position_change)
+            except:
+                position_change = 0
+            
+            # 执行交易
+            if position_change == 1 and self.positions == 0:  # 买入信号
+                shares_to_buy = int((self.capital * self.config.max_position_size) / 
+                                  (current_price * (1 + self.config.commission + self.config.slippage)))
+                if shares_to_buy > 0:
+                    cost = shares_to_buy * current_price * (1 + self.config.commission + self.config.slippage)
+                    if cost <= self.capital:
+                        self.capital -= cost
+                        self.positions = shares_to_buy
+                        
+                        self.trades.append({
+                            'date': date,
+                            'action': 'BUY',
+                            'shares': shares_to_buy,
+                            'price': current_price,
+                            'value': cost
+                        })
+            
+            elif position_change == -1 and self.positions > 0:  # 卖出信号
+                revenue = self.positions * current_price * (1 - self.config.commission - self.config.slippage)
+                self.capital += revenue
+                
+                self.trades.append({
+                    'date': date,
+                    'action': 'SELL',
+                    'shares': self.positions,
+                    'price': current_price,
+                    'value': revenue
+                })
+                
+                self.positions = 0
+            
+            # 计算当前组合价值
+            portfolio_value = self.capital + self.positions * current_price
+            portfolio_values.append(portfolio_value)
+            cash_history.append(self.capital)
+            position_history.append(self.positions)
+        
+        # 添加历史数据到DataFrame
+        strategy_data = strategy_data.copy()
+        strategy_data['Portfolio_Value'] = portfolio_values
+        strategy_data['Cash'] = cash_history
+        strategy_data['Positions'] = position_history
+        
+        # 计算绩效指标
+        metrics = self.calculate_performance_metrics(strategy_data, symbol)
+        
+        return {
+            'data': strategy_data,
+            'trades': self.trades,
+            'metrics': metrics,
+            'final_value': portfolio_values[-1] if portfolio_values else self.config.initial_capital
+        }
+    
+    def calculate_performance_metrics(self, data: pd.DataFrame, symbol: str) -> Dict:
+        """计算详细的绩效指标"""
+        if 'Portfolio_Value' not in data.columns or data['Portfolio_Value'].empty:
+            return {}
+        
+        portfolio_values = data['Portfolio_Value']
+        returns = portfolio_values.pct_change().dropna()
+        
+        # 基础指标
+        total_return = (portfolio_values.iloc[-1] - self.config.initial_capital) / self.config.initial_capital
+        trading_days = len(data)
+        annual_return = (1 + total_return) ** (252 / trading_days) - 1
+        
+        # 风险指标
+        annual_volatility = returns.std() * np.sqrt(252) if len(returns) > 1 else 0
+        
+        # 夏普比率
+        excess_returns = returns - self.config.risk_free_rate / 252
+        sharpe_ratio = (excess_returns.mean() / excess_returns.std() * np.sqrt(252)) if excess_returns.std() != 0 else 0
+        
+        # 最大回撤
+        cumulative_returns = (1 + returns).cumprod()
+        rolling_max = cumulative_returns.expanding().max()
+        drawdowns = (cumulative_returns - rolling_max) / rolling_max
+        max_drawdown = drawdowns.min()
+        
+        # 交易统计
+        total_trades = len(self.trades) // 2 if len(self.trades) > 1 else 0
+        
+        # 计算胜率
+        winning_trades = 0
+        if total_trades > 0:
+            for i in range(0, len(self.trades) - 1, 2):
+                if i + 1 < len(self.trades):
+                    buy_price = self.trades[i]['price']
+                    sell_price = self.trades[i + 1]['price']
+                    if sell_price > buy_price:
+                        winning_trades += 1
+        
+        win_rate = winning_trades / total_trades if total_trades > 0 else 0
+        
+        # 基准比较
+        benchmark_return = (data['Close'].iloc[-1] - data['Close'].iloc[0]) / data['Close'].iloc[0]
+        alpha = annual_return - benchmark_return
+        
+        return {
+            'symbol': symbol,
+            'total_return': total_return,
+            'annual_return': annual_return,
+            'benchmark_return': benchmark_return,
+            'alpha': alpha,
+            'annual_volatility': annual_volatility,
+            'sharpe_ratio': sharpe_ratio,
+            'max_drawdown': max_drawdown,
+            'win_rate': win_rate,
+            'total_trades': total_trades,
+            'final_value': portfolio_values.iloc[-1],
+            'days_traded': trading_days
+        }
+
+# =====================================================
+# 基本面分析引擎
+# =====================================================
+
+class FundamentalAnalysisEngine:
+    """基本面分析引擎"""
+    
+    def __init__(self):
+        self.cache = {}
+        self.cache_timeout = 3600
+    
+    def get_fundamental_data(self, symbol: str) -> Dict:
+        """获取股票基本面数据"""
+        cache_key = f"fundamental_{symbol}_{datetime.now().hour}"
+        
+        if cache_key in self.cache:
+            return self.cache[cache_key]
         
         try:
-            sharpe_key = "夏普比率" if self.lang == "中文" else "Sharpe Ratio"
-            sharpe = float(metrics[sharpe_key])
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
             
-            result += "\n### 🎯 AI评估\n\n" if self.lang == "中文" else "\n### 🎯 AI Assessment\n\n"
+            fundamental_data = {
+                "symbol": symbol,
+                "company_name": info.get("longName", symbol),
+                
+                # 估值指标
+                "pe_ratio": info.get("trailingPE", None),
+                "forward_pe": info.get("forwardPE", None),
+                "pb_ratio": info.get("priceToBook", None),
+                "ps_ratio": info.get("priceToSalesTrailing12Months", None),
+                "peg_ratio": info.get("pegRatio", None),
+                
+                # 盈利能力
+                "roe": info.get("returnOnEquity", None),
+                "roa": info.get("returnOnAssets", None),
+                "gross_margin": info.get("grossMargins", None),
+                "operating_margin": info.get("operatingMargins", None),
+                "net_margin": info.get("profitMargins", None),
+                
+                # 财务健康
+                "debt_to_equity": info.get("debtToEquity", None),
+                "current_ratio": info.get("currentRatio", None),
+                "quick_ratio": info.get("quickRatio", None),
+                "cash_per_share": info.get("totalCashPerShare", None),
+                
+                # 成长性
+                "revenue_growth": info.get("revenueGrowth", None),
+                "earnings_growth": info.get("earningsGrowth", None),
+                
+                # 股息
+                "dividend_yield": info.get("dividendYield", None),
+                "payout_ratio": info.get("payoutRatio", None),
+                "dividend_rate": info.get("dividendRate", None),
+                
+                # 市场数据
+                "market_cap": info.get("marketCap", None),
+                "enterprise_value": info.get("enterpriseValue", None),
+                "shares_outstanding": info.get("sharesOutstanding", None),
+                
+                # 行业信息
+                "sector": info.get("sector", "Unknown"),
+                "industry": info.get("industry", "Unknown"),
+                "country": info.get("country", "Unknown"),
+                
+                # 分析师预期
+                "target_price": info.get("targetMeanPrice", None),
+                "recommendation": info.get("recommendationMean", None),
+                
+                "last_updated": datetime.now().isoformat()
+            }
             
-            if sharpe > 1.0:
-                if self.lang == "中文":
-                    result += "✅ **优秀策略** - 夏普比率 > 1.0，风险调整收益表现出色\n"
-                    result += "💡 **建议** - 可考虑实盘测试，建议5-10%仓位"
-                else:
-                    result += "✅ **Excellent Strategy** - Sharpe ratio > 1.0, outstanding risk-adjusted returns\n"
-                    result += "💡 **Recommendation** - Consider live testing with 5-10% position size"
-            elif sharpe > 0.5:
-                if self.lang == "中文":
-                    result += "⚠️ **中等策略** - 有一定价值，建议优化参数\n"
-                    result += "💡 **建议** - 可小仓位测试或结合其他策略"
-                else:
-                    result += "⚠️ **Moderate Strategy** - Has value, recommend parameter optimization\n"
-                    result += "💡 **Recommendation** - Test with small position or combine with other strategies"
-            else:
-                if self.lang == "中文":
-                    result += "❌ **需要改进** - 表现不佳，建议重新评估\n"
-                    result += "💡 **建议** - 尝试其他策略或调整参数"
-                else:
-                    result += "❌ **Needs Improvement** - Poor performance, recommend reassessment\n"
-                    result += "💡 **Recommendation** - Try other strategies or adjust parameters"
-        except:
-            result += "\n💡 分析完成" if self.lang == "中文" else "\n💡 Analysis completed"
-        
-        return result
+            # 计算派生指标
+            fundamental_data.update(self._calculate_derived_metrics(fundamental_data, info))
+            
+            # 缓存数据
+            self.cache[cache_key] = fundamental_data
+            
+            return fundamental_data
+            
+        except Exception as e:
+            print(f"❌ 获取 {symbol} 基本面数据失败: {e}")
+            return {"symbol": symbol, "error": str(e)}
     
-    def generate_response(self, user_input):
-        parsed = self.parse_input(user_input)
+    def _calculate_derived_metrics(self, data: Dict, info: Dict) -> Dict:
+        """计算派生的基本面指标"""
+        derived = {}
         
-        if parsed["language"] != self.lang:
-            self.lang = parsed["language"]
-            self.strategy_engine.lang = parsed["language"]
-            self.backtest_engine.lang = parsed["language"]
-        
-        if not parsed["stocks"]:
-            if self.lang == "中文":
-                return "🤖 请指定要分析的股票，如：'分析AAPL的趋势策略' 或 '苹果公司的布林带策略'"
+        try:
+            # 计算股票评级 (1-100分)
+            score = 50
+            
+            # PE估值评分
+            pe = data.get("pe_ratio")
+            if pe and 0 < pe < 15:
+                score += 15
+            elif pe and 15 <= pe <= 25:
+                score += 10
+            elif pe and pe > 30:
+                score -= 10
+            
+            # ROE评分
+            roe = data.get("roe")
+            if roe and roe > 0.2:
+                score += 15
+            elif roe and roe > 0.15:
+                score += 10
+            elif roe and roe < 0.1:
+                score -= 5
+            
+            # 债务评分
+            debt_eq = data.get("debt_to_equity")
+            if debt_eq is not None:
+                if debt_eq < 0.3:
+                    score += 10
+                elif debt_eq > 1.0:
+                    score -= 10
+            
+            # 成长性评分
+            rev_growth = data.get("revenue_growth")
+            if rev_growth and rev_growth > 0.15:
+                score += 10
+            elif rev_growth and rev_growth > 0.05:
+                score += 5
+            elif rev_growth and rev_growth < 0:
+                score -= 10
+            
+            derived["fundamental_score"] = max(0, min(100, score))
+            
+            # 投资风格分类
+            pe = data.get("pe_ratio", 0)
+            pb = data.get("pb_ratio", 0)
+            growth = data.get("revenue_growth", 0)
+            
+            if pe and pb and pe < 15 and pb < 2:
+                derived["investment_style"] = "Deep Value"
+            elif pe and pb and pe < 20 and pb < 3:
+                derived["investment_style"] = "Value"
+            elif growth and growth > 0.2:
+                derived["investment_style"] = "Growth"
+            elif growth and growth > 0.1:
+                derived["investment_style"] = "GARP"
             else:
-                return "🤖 Please specify a stock to analyze, e.g., 'Analyze AAPL trend strategy' or 'Apple Bollinger Bands strategy'"
+                derived["investment_style"] = "Balanced"
+            
+            # 质量评级
+            roe = data.get("roe", 0)
+            debt_eq = data.get("debt_to_equity", float('inf'))
+            current_ratio = data.get("current_ratio", 0)
+            
+            quality_score = 0
+            if roe and roe > 0.15: quality_score += 1
+            if debt_eq and debt_eq < 0.5: quality_score += 1
+            if current_ratio and current_ratio > 1.5: quality_score += 1
+            
+            quality_map = {0: "Poor", 1: "Fair", 2: "Good", 3: "Excellent"}
+            derived["quality_rating"] = quality_map.get(quality_score, "Unknown")
+            
+        except Exception as e:
+            print(f"计算派生指标错误: {e}")
+        
+        return derived
+
+# =====================================================
+# 股票筛选预设
+# =====================================================
+
+class ScreeningPresets:
+    """常用筛选条件预设"""
+    
+    @staticmethod
+    def value_stocks() -> AdvancedScreeningCriteria:
+        """价值股筛选条件"""
+        return AdvancedScreeningCriteria(
+            pe_ratio_max=15,
+            pb_ratio_max=2,
+            debt_to_equity_max=0.5,
+            roe_min=10,
+            dividend_yield_min=2,
+            market_cap_min=10
+        )
+    
+    @staticmethod
+    def growth_stocks() -> AdvancedScreeningCriteria:
+        """成长股筛选条件"""
+        return AdvancedScreeningCriteria(
+            revenue_growth_min=15,
+            earnings_growth_min=15,
+            roe_min=15,
+            gross_margin_min=40,
+            debt_to_equity_max=0.3,
+            pe_ratio_max=40
+        )
+    
+    @staticmethod
+    def dividend_stocks() -> AdvancedScreeningCriteria:
+        """分红股筛选条件"""
+        return AdvancedScreeningCriteria(
+            dividend_yield_min=3,
+            payout_ratio_max=70,
+            debt_to_equity_max=0.6,
+            current_ratio_min=1.5,
+            roe_min=12
+        )
+    
+    @staticmethod
+    def quality_stocks() -> AdvancedScreeningCriteria:
+        """优质股筛选条件"""
+        return AdvancedScreeningCriteria(
+            roe_min=20,
+            roa_min=10,
+            debt_to_equity_max=0.3,
+            current_ratio_min=2,
+            gross_margin_min=50,
+            operating_margin_min=20,
+            net_margin_min=15
+        )
+    
+    @staticmethod
+    def technical_momentum() -> AdvancedScreeningCriteria:
+        """技术动量筛选条件"""
+        return AdvancedScreeningCriteria(
+            rsi_min=50,
+            rsi_max=80,
+            above_sma_20=True,
+            above_sma_50=True,
+            ai_score_min=60,
+            avg_volume_ratio_min=1.2
+        )
+
+# =====================================================
+# 主应用类 (完整版)
+# =====================================================
+
+class QuantGPT:
+    """QuantGPT主应用类 - 完整版"""
+    
+    def __init__(self, config: QuantGPTConfig = None):
+        self.config = config or QuantGPTConfig()
+        self.ai_engine = AIAnalysisEngine(self.config)
+        self.data_manager = DataManager(self.config)
+        self.strategy_engine = StrategyEngine(self.config)
+        self.backtest_engine = BacktestEngine(self.config)
+        self.fundamental_engine = FundamentalAnalysisEngine()
+        
+        print("🚀 QuantGPT完整系统初始化完成！")
+        print(f"💰 初始资金: ${self.config.initial_capital:,.2f}")
+        print(f"🤖 AI模型: {self.config.sentiment_model}")
+        print(f"⚡ 设备: {self.config.device}")
+        print("\n🎯 系统功能:")
+        print("  ✅ AI情感分析与智能建议")
+        print("  ✅ 多策略回测与绩效分析")
+        print("  ✅ 基本面深度分析")
+        print("  ✅ 技术指标分析")
+        print("  ✅ 投资组合管理")
+    
+    def analyze_stock(self, symbol: str, period: str = "1y") -> Dict:
+        """分析单只股票 - 增强版"""
+        print(f"📊 正在分析 {symbol}...")
+        
+        # 获取数据
+        data = self.data_manager.get_stock_data(symbol, period)
+        if data is None:
+            return {"error": f"无法获取{symbol}数据"}
+        
+        # 获取股票信息
+        stock_info = self.data_manager.get_stock_info(symbol)
+        
+        # AI分析
+        insight = self.ai_engine.generate_market_insight(symbol, data)
+        
+        # 基本面分析
+        fundamental_data = self.fundamental_engine.get_fundamental_data(symbol)
+        
+        return {
+            "symbol": symbol,
+            "stock_info": stock_info,
+            "data": data,
+            "ai_insight": insight,
+            "fundamental_analysis": fundamental_data,
+            "analysis_date": datetime.now().isoformat()
+        }
+    
+    def run_strategy_backtest(self, symbol: str, strategy_name: str, 
+                             period: str = "2y", **strategy_params) -> Dict:
+        """运行策略回测"""
+        print(f"🔬 正在回测 {symbol} - {strategy_name}...")
+        
+        # 获取数据
+        data = self.data_manager.get_stock_data(symbol, period)
+        if data is None:
+            return {"error": f"无法获取{symbol}数据"}
+        
+        # 选择策略
+        if strategy_name == "sma_crossover":
+            strategy_data = self.strategy_engine.sma_crossover_strategy(data, **strategy_params)
+        elif strategy_name == "rsi":
+            strategy_data = self.strategy_engine.rsi_strategy(data, **strategy_params)
+        elif strategy_name == "bollinger_bands":
+            strategy_data = self.strategy_engine.bollinger_bands_strategy(data, **strategy_params)
+        elif strategy_name == "ai_sentiment":
+            strategy_data = self.strategy_engine.ai_sentiment_strategy(data, self.ai_engine, **strategy_params)
+        else:
+            return {"error": f"未知策略: {strategy_name}"}
+        
+        # 执行回测
+        backtest_result = self.backtest_engine.execute_backtest(strategy_data, symbol)
+        backtest_result['strategy_name'] = strategy_name
+        backtest_result['strategy_params'] = strategy_params
+        
+        return backtest_result
+    
+    def compare_strategies(self, symbol: str, strategies: List[str], 
+                          period: str = "2y") -> Dict:
+        """比较多个策略"""
+        print(f"📈 正在比较 {symbol} 的 {len(strategies)} 个策略...")
+        
+        results = {}
+        for strategy in strategies:
+            result = self.run_strategy_backtest(symbol, strategy, period)
+            if "error" not in result:
+                results[strategy] = result
+        
+        if not results:
+            return {"error": "所有策略都失败了"}
+        
+        return {
+            "symbol": symbol,
+            "strategies": results,
+            "best_strategy": max(results.keys(), 
+                               key=lambda x: results[x]['metrics'].get('sharpe_ratio', 0))
+        }
+    
+    def screen_stocks_basic(self, criteria: AdvancedScreeningCriteria, symbols: List[str] = None) -> List[Dict]:
+        """基本股票筛选功能"""
+        if symbols is None:
+            symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA", "AMZN", "META", "NFLX"]
         
         results = []
-        for stock in parsed["stocks"]:
+        for symbol in symbols:
             try:
-                result = self.analyze_stock(stock, parsed["strategy"])
-                results.append(result)
+                # 获取基本面数据
+                fundamental = self.fundamental_engine.get_fundamental_data(symbol)
+                if "error" in fundamental:
+                    continue
+                
+                # 检查筛选条件
+                if self._meets_criteria(fundamental, criteria):
+                    # 获取AI分析
+                    analysis = self.analyze_stock(symbol)
+                    if "error" not in analysis:
+                        results.append({
+                            "symbol": symbol,
+                            "fundamental_score": fundamental.get("fundamental_score", 0),
+                            "ai_recommendation": analysis["ai_insight"]["recommendation"],
+                            "ai_confidence": analysis["ai_insight"]["confidence"],
+                            "pe_ratio": fundamental.get("pe_ratio"),
+                            "roe": fundamental.get("roe"),
+                            "sector": fundamental.get("sector"),
+                            "investment_style": fundamental.get("investment_style"),
+                            "quality_rating": fundamental.get("quality_rating")
+                        })
             except Exception as e:
-                error_msg = f"❌ 分析{stock}失败：{str(e)}" if self.lang == "中文" else f"❌ Failed to analyze {stock}: {str(e)}"
-                results.append(error_msg)
+                print(f"处理{symbol}时出错: {e}")
         
-        return "\n\n".join(results)
+        # 按基本面评分排序
+        results.sort(key=lambda x: x["fundamental_score"], reverse=True)
+        return results
+    
+    def _meets_criteria(self, data: Dict, criteria: AdvancedScreeningCriteria) -> bool:
+        """检查是否满足筛选条件"""
+        # PE比率筛选
+        pe = data.get("pe_ratio")
+        if criteria.pe_ratio_min and (not pe or pe < criteria.pe_ratio_min):
+            return False
+        if criteria.pe_ratio_max and (not pe or pe > criteria.pe_ratio_max):
+            return False
+        
+        # ROE筛选
+        roe = data.get("roe")
+        if criteria.roe_min and (not roe or roe < criteria.roe_min / 100):
+            return False
+        
+        # 债务股权比筛选
+        debt_eq = data.get("debt_to_equity")
+        if criteria.debt_to_equity_max and debt_eq and debt_eq > criteria.debt_to_equity_max:
+            return False
+        
+        # 股息率筛选
+        dividend_yield = data.get("dividend_yield")
+        if criteria.dividend_yield_min and (not dividend_yield or dividend_yield < criteria.dividend_yield_min / 100):
+            return False
+        
+        return True
+    
+    def get_fundamental_data(self, symbol: str) -> Dict:
+        """获取基本面数据"""
+        return self.fundamental_engine.get_fundamental_data(symbol)
 
-# 图表生成
-def create_openquant_style_chart(stock):
-    if 'analysis_data' not in st.session_state or stock not in st.session_state.analysis_data:
-        st.error(f"No data available for {stock}")
-        return
-    
-    data = st.session_state.analysis_data[stock]
-    
-    fig = make_subplots(
-        rows=3, cols=1,
-        shared_xaxes=True,
-        subplot_titles=[f'{stock} Price & Signals', 'Technical Indicators', 'Strategy Performance'],
-        row_heights=[0.5, 0.25, 0.25],
-        vertical_spacing=0.08
-    )
-    
-    # 价格线 - OpenQuant风格
-    fig.add_trace(
-        go.Scatter(
-            x=data.index, 
-            y=data['Close'], 
-            name='Price',
-            line=dict(color='#3B82F6', width=2.5),
-            hovertemplate='<b>Price</b>: $%{y:.2f}<br><b>Date</b>: %{x}<extra></extra>'
-        ),
-        row=1, col=1
-    )
-    
-    # 均线
-    if 'SMA_short' in data.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=data.index, 
-                y=data['SMA_short'], 
-                name='Short MA',
-                line=dict(color='#10B981', width=2, dash='dot'),
-                opacity=0.8
-            ),
-            row=1, col=1
-        )
-    
-    if 'SMA_long' in data.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=data.index, 
-                y=data['SMA_long'], 
-                name='Long MA',
-                line=dict(color='#F59E0B', width=2, dash='dot'),
-                opacity=0.8
-            ),
-            row=1, col=1
-        )
-    
-    # 交易信号
-    buy_signals = data[data['Position'] == 1]
-    sell_signals = data[data['Position'] == -1]
-    
-    if not buy_signals.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=buy_signals.index, 
-                y=buy_signals['Close'],
-                mode='markers', 
-                name='Buy',
-                marker=dict(color='#10B981', size=10, symbol='triangle-up'),
-                hovertemplate='<b>Buy Signal</b><br>Price: $%{y:.2f}<extra></extra>'
-            ),
-            row=1, col=1
-        )
-    
-    if not sell_signals.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=sell_signals.index, 
-                y=sell_signals['Close'],
-                mode='markers', 
-                name='Sell',
-                marker=dict(color='#EF4444', size=10, symbol='triangle-down'),
-                hovertemplate='<b>Sell Signal</b><br>Price: $%{y:.2f}<extra></extra>'
-            ),
-            row=1, col=1
-        )
-    
-    # RSI指标
-    if 'RSI' in data.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=data.index, 
-                y=data['RSI'], 
-                name='RSI',
-                line=dict(color='#8B5CF6', width=2),
-                hovertemplate='<b>RSI</b>: %{y:.1f}<extra></extra>'
-            ),
-            row=2, col=1
-        )
-        fig.add_hline(y=70, row=2, col=1, line_dash="dash", line_color="#EF4444", opacity=0.6)
-        fig.add_hline(y=30, row=2, col=1, line_dash="dash", line_color="#10B981", opacity=0.6)
-    
-    # 收益对比
-    benchmark = (data['Cumulative_Returns'] - 1) * 100
-    strategy = (data['Strategy_Cumulative'] - 1) * 100
-    
-    fig.add_trace(
-        go.Scatter(
-            x=data.index, 
-            y=benchmark, 
-            name='Buy & Hold',
-            line=dict(color='#9CA3AF', width=2),
-            hovertemplate='<b>Buy & Hold</b>: %{y:.1f}%<extra></extra>'
-        ),
-        row=3, col=1
-    )
-    
-    fig.add_trace(
-        go.Scatter(
-            x=data.index, 
-            y=strategy, 
-            name='Strategy',
-            line=dict(color='#3B82F6', width=3),
-            fill='tonexty',
-            fillcolor='rgba(59, 130, 246, 0.1)',
-            hovertemplate='<b>Strategy</b>: %{y:.1f}%<extra></extra>'
-        ),
-        row=3, col=1
-    )
-    
-    # OpenQuant风格布局
-    fig.update_layout(
-        height=700,
-        title={
-            'text': f"<b>{stock}</b> Quantitative Analysis",
-            'x': 0.5,
-            'font': {'size': 18, 'color': '#1F2937', 'family': 'Inter'}
-        },
-        showlegend=True,
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(color='#374151', family='Inter'),
-        legend=dict(
-            bgcolor='white',
-            bordercolor='#E5E7EB',
-            borderwidth=1,
-            font=dict(color='#374151', size=12)
-        ),
-        hovermode='x unified'
-    )
-    
-    # 更新坐标轴
-    for i in range(1, 4):
-        fig.update_xaxes(
-            showgrid=True, 
-            gridwidth=1, 
-            gridcolor='#F3F4F6',
-            showline=True,
-            linecolor='#E5E7EB',
-            row=i, col=1
-        )
-        fig.update_yaxes(
-            showgrid=True, 
-            gridwidth=1, 
-            gridcolor='#F3F4F6',
-            showline=True,
-            linecolor='#E5E7EB',
-            row=i, col=1
-        )
-    
-    return fig
+# =====================================================
+# 便捷函数
+# =====================================================
 
-# 消息显示
-def display_message(message, is_user=False, lang="中文"):
-    if is_user:
-        st.markdown(f"""
-        <div class="message user">
-            <div class="message-avatar user-avatar">U</div>
-            <div class="message-content">{message}</div>
-        </div>
-        """, unsafe_allow_html=True)
+def quick_start():
+    """快速启动QuantGPT"""
+    print("🚀 QuantGPT快速启动...")
+    
+    quantgpt = QuantGPT()
+    
+    print("\n📊 快速演示 - AAPL分析...")
+    apple_result = quantgpt.analyze_stock("AAPL")
+    
+    if "error" not in apple_result:
+        insight = apple_result["ai_insight"]
+        print(f"✅ AAPL AI建议: {insight['recommendation']}")
+        print(f"📝 理由: {insight['reasoning']}")
+        
+        if "fundamental_analysis" in apple_result and "error" not in apple_result["fundamental_analysis"]:
+            fund = apple_result["fundamental_analysis"]
+            print(f"💎 基本面评分: {fund.get('fundamental_score', 0):.1f}/100")
+    
+    print("\n🔬 快速演示 - 策略回测...")
+    backtest_result = quantgpt.run_strategy_backtest("AAPL", "sma_crossover")
+    
+    if "error" not in backtest_result:
+        metrics = backtest_result["metrics"]
+        print(f"✅ 回测完成!")
+        print(f"📈 总收益率: {metrics.get('total_return', 0):.2%}")
+        print(f"📊 夏普比率: {metrics.get('sharpe_ratio', 0):.3f}")
+    
+    print("\n🔍 快速演示 - 价值股筛选...")
+    screening_result = quantgpt.screen_stocks_basic(ScreeningPresets.value_stocks())
+    
+    if screening_result:
+        print(f"✅ 找到 {len(screening_result)} 只价值股:")
+        for stock in screening_result[:3]:
+            print(f"   {stock['symbol']}: {stock['fundamental_score']:.1f}分")
+    
+    print("\n🎉 QuantGPT已准备就绪!")
+    return quantgpt
+
+def quick_analyze(symbol: str, quantgpt=None):
+    """快速分析单只股票"""
+    if quantgpt is None:
+        quantgpt = QuantGPT()
+    
+    print(f"🔍 快速分析 {symbol}...")
+    result = quantgpt.analyze_stock(symbol)
+    
+    if "error" not in result:
+        insight = result["ai_insight"]
+        print(f"✅ {symbol}:")
+        print(f"   价格: ${insight['current_price']:.2f}")
+        print(f"   建议: {insight['recommendation']}")
+        print(f"   置信度: {insight['confidence']:.1%}")
+        
+        if "fundamental_analysis" in result and "error" not in result["fundamental_analysis"]:
+            fund = result["fundamental_analysis"]
+            print(f"   基本面评分: {fund.get('fundamental_score', 0):.1f}/100")
     else:
-        st.markdown(f"""
-        <div class="message assistant">
-            <div class="message-avatar assistant-avatar">AI</div>
-            <div class="message-content">{message}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        print(f"❌ {result['error']}")
+    
+    return result
 
-# 主程序
-def main():
-    # 语言设置
-    if 'language' not in st.session_state:
-        st.session_state.language = "中文"
+def quick_screen(screen_type: str = "value", quantgpt=None):
+    """快速筛选股票"""
+    if quantgpt is None:
+        quantgpt = QuantGPT()
     
-    lang = st.session_state.language
-    t = LANGUAGES[lang]
+    preset_map = {
+        "value": ScreeningPresets.value_stocks(),
+        "growth": ScreeningPresets.growth_stocks(),
+        "dividend": ScreeningPresets.dividend_stocks(),
+        "quality": ScreeningPresets.quality_stocks()
+    }
     
-    # 顶部导航
-    status_data = "status-online" if YFINANCE_AVAILABLE else "status-offline"
-    data_text = t["real_time"] if YFINANCE_AVAILABLE else t["simulated"]
+    if screen_type not in preset_map:
+        print(f"❌ 无效的筛选类型: {screen_type}")
+        return None
     
-    status_ta = "status-online" if TA_AVAILABLE else "status-warning"
-    ta_text = t["complete"] if TA_AVAILABLE else t["basic"]
+    print(f"🔍 快速{screen_type}股筛选...")
+    results = quantgpt.screen_stocks_basic(preset_map[screen_type])
     
-    st.markdown(f"""
-    <div class="top-nav">
-        <div class="logo-section">
-            <div class="logo">📊 {t['title']}</div>
-            <div class="logo-subtitle">{t['subtitle']}</div>
-        </div>
-        <div class="nav-status">
-            <div class="status-badge {status_data}">{t['data_source']}: {data_text}</div>
-            <div class="status-badge {status_ta}">{t['technical_indicators']}: {ta_text}</div>
-            <div class="status-badge status-online">{t['system_status']}: {t['online']}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    if results:
+        print(f"✅ 找到 {len(results)} 只股票:")
+        for stock in results[:5]:
+            print(f"  {stock['symbol']}: {stock['fundamental_score']:.1f}分 - {stock.get('ai_recommendation', 'N/A')}")
+    else:
+        print("❌ 未找到符合条件的股票")
     
-    # 主容器
-    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+    return results
+
+def interactive_session(quantgpt=None):
+    """交互式会话"""
+    if quantgpt is None:
+        quantgpt = QuantGPT()
     
-    # 英雄区域
-    st.markdown(f"""
-    <div class="hero-section">
-        <h1 class="hero-title">{t['hero_title']}</h1>
-        <p class="hero-subtitle">{t['hero_desc']}</p>
-        <div class="feature-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🤖</div>
-                <div class="feature-title">{t['features']['intelligent']['title']}</div>
-                <div class="feature-desc">{t['features']['intelligent']['desc']}</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">📊</div>
-                <div class="feature-title">{t['features']['professional']['title']}</div>
-                <div class="feature-desc">{t['features']['professional']['desc']}</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <div class="feature-title">{t['features']['realtime']['title']}</div>
-                <div class="feature-desc">{t['features']['realtime']['desc']}</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🌐</div>
-                <div class="feature-title">{t['features']['multilingual']['title']}</div>
-                <div class="feature-desc">{t['features']['multilingual']['desc']}</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    print("🎯 欢迎使用QuantGPT交互系统!")
+    print("输入 'help' 查看可用命令")
     
-    # 聊天界面
-    st.markdown(f"""
-    <div class="chat-container">
-        <div class="chat-header">
-            🤖 {t['chat_title']}
-        </div>
-        <div class="chat-messages">
-    """, unsafe_allow_html=True)
-    
-    # 初始化
-    if "messages" not in st.session_state:
-        st.session_state.messages = [{
-            "role": "assistant",
-            "content": t["welcome"]
-        }]
-    
-    if "analyst" not in st.session_state:
-        st.session_state.analyst = BilingualQuantGPTAnalyst(lang)
-    
-    # 显示消息
-    for message in st.session_state.messages:
-        display_message(message["content"], message["role"] == "user", lang)
-    
-    st.markdown('</div></div>', unsafe_allow_html=True)
-    
-    # 用户输入
-    placeholder_text = "输入您的分析需求..." if lang == "中文" else "Enter your analysis request..."
-    user_input = st.chat_input(placeholder_text)
-    
-    if user_input:
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        
-        with st.spinner("🤖 分析中..." if lang == "中文" else "🤖 Analyzing..."):
-            response = st.session_state.analyst.generate_response(user_input)
-        
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        st.rerun()
-    
-    # 图表展示
-    if 'analysis_data' in st.session_state and st.session_state.analysis_data:
-        st.markdown("---")
-        st.markdown(f'<div class="chart-title">📈 专业图表分析</div>' if lang == "中文" else f'<div class="chart-title">📈 Professional Chart Analysis</div>', unsafe_allow_html=True)
-        
-        cols = st.columns(len(st.session_state.analysis_data))
-        for i, stock in enumerate(st.session_state.analysis_data.keys()):
-            with cols[i]:
-                button_text = f"查看 {stock} 图表" if lang == "中文" else f"View {stock} Chart"
-                if st.button(button_text, key=f"chart_{stock}", use_container_width=True):
-                    st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-                    fig = create_openquant_style_chart(stock)
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-                    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # 侧边栏
-    with st.sidebar:
-        # 语言选择
-        st.markdown(f'<div class="sidebar-title">🌐 Language / 语言</div>', unsafe_allow_html=True)
-        new_lang = st.selectbox("", ["中文", "English"], index=0 if lang == "中文" else 1)
-        
-        if new_lang != st.session_state.language:
-            st.session_state.language = new_lang
-            st.rerun()
-        
-        # 快速分析
-        st.markdown(f'<div class="sidebar-title">🚀 {t["quick_analysis"]}</div>', unsafe_allow_html=True)
-        
-        stocks = ["AAPL", "TSLA", "GOOGL", "MSFT", "NVDA", "AMZN"]
-        selected_stock = st.selectbox(t["select_stock"], stocks)
-        
-        strategies = [t["trend_strategy"], t["mean_reversion"], t["momentum_strategy"]]
-        selected_strategy = st.selectbox(t["select_strategy"], strategies)
-        
-        if st.button(t["start_analysis"], use_container_width=True, type="primary"):
-            if lang == "中文":
-                query = f"分析{selected_stock}的{selected_strategy}"
-            else:
-                strategy_map = {
-                    "Trend Strategy": "trend strategy",
-                    "Mean Reversion": "Bollinger Bands strategy", 
-                    "Momentum Strategy": "RSI momentum strategy"
-                }
-                query = f"Analyze {selected_stock} {strategy_map.get(selected_strategy, 'strategy')}"
+    while True:
+        try:
+            command = input("\nQuantGPT> ").strip().lower()
             
-            st.session_state.messages.append({"role": "user", "content": query})
-            response = st.session_state.analyst.generate_response(query)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            st.rerun()
+            if command == "quit" or command == "exit":
+                print("👋 再见!")
+                break
+                
+            elif command == "help":
+                print("\n📖 可用命令:")
+                print("analyze <股票代码>     - AI股票分析")
+                print("fundamental <股票代码> - 基本面分析")
+                print("sentiment <文本>      - 情感分析")
+                print("backtest <股票> <策略> - 策略回测")
+                print("compare <股票>         - 策略比较")
+                print("screen <类型>         - 股票筛选 (value/growth/quality)")
+                print("help                  - 显示帮助")
+                print("quit                  - 退出")
+                
+            elif command.startswith("analyze "):
+                symbol = command.split()[1].upper()
+                result = quick_analyze(symbol, quantgpt)
+                
+            elif command.startswith("fundamental "):
+                symbol = command.split()[1].upper()
+                print(f"📈 获取 {symbol} 基本面数据...")
+                result = quantgpt.get_fundamental_data(symbol)
+                if "error" not in result:
+                    print(f"✅ {symbol} 基本面分析:")
+                    print(f"   公司: {result.get('company_name', 'N/A')}")
+                    print(f"   行业: {result.get('sector', 'N/A')}")
+                    print(f"   PE: {result.get('pe_ratio', 'N/A')}")
+                    print(f"   ROE: {(result.get('roe', 0) or 0) * 100:.1f}%")
+                    print(f"   评分: {result.get('fundamental_score', 0):.1f}/100")
+                else:
+                    print(f"❌ {result['error']}")
+                    
+            elif command.startswith("sentiment "):
+                text = command[10:]
+                print("🧠 分析情感...")
+                result = quantgpt.ai_engine.analyze_sentiment(text)
+                print(f"✅ 情感分析结果:")
+                print(f"   文本: {text}")
+                print(f"   情感: {result['sentiment']}")
+                print(f"   置信度: {result['confidence']:.2%}")
+                
+            elif command.startswith("backtest "):
+                parts = command.split()
+                if len(parts) >= 3:
+                    symbol = parts[1].upper()
+                    strategy = parts[2]
+                    print(f"🔬 回测 {symbol} - {strategy}...")
+                    result = quantgpt.run_strategy_backtest(symbol, strategy)
+                    if "error" not in result:
+                        metrics = result["metrics"]
+                        print(f"✅ 回测结果:")
+                        print(f"   总收益率: {metrics.get('total_return', 0):.2%}")
+                        print(f"   夏普比率: {metrics.get('sharpe_ratio', 0):.3f}")
+                        print(f"   最大回撤: {metrics.get('max_drawdown', 0):.2%}")
+                    else:
+                        print(f"❌ {result['error']}")
+                else:
+                    print("❌ 用法: backtest <股票代码> <策略名>")
+                    
+            elif command.startswith("compare "):
+                symbol = command.split()[1].upper()
+                strategies = ["sma_crossover", "rsi", "bollinger_bands", "ai_sentiment"]
+                print(f"📈 比较 {symbol} 的所有策略...")
+                result = quantgpt.compare_strategies(symbol, strategies)
+                if "error" not in result:
+                    print(f"✅ 最佳策略: {result['best_strategy']}")
+                    for strategy, data in result["strategies"].items():
+                        metrics = data["metrics"]
+                        print(f"   {strategy}: {metrics.get('total_return', 0):.2%}")
+                else:
+                    print(f"❌ {result['error']}")
+                    
+            elif command.startswith("screen "):
+                screen_type = command.split()[1] if len(command.split()) > 1 else "value"
+                quick_screen(screen_type, quantgpt)
+                
+            else:
+                print("❌ 无效命令，输入 'help' 查看帮助")
+                
+        except KeyboardInterrupt:
+            print("\n👋 用户中断操作")
+            break
+        except Exception as e:
+            print(f"❌ 错误: {e}")
+
+# =====================================================
+# 主函数
+# =====================================================
+
+def main():
+    """主函数"""
+    print("🎯 QuantGPT启动选项:")
+    print("1. 快速启动")
+    print("2. 交互模式")
+    print("3. 自定义分析")
+    
+    try:
+        choice = input("\n请选择 (1-3): ").strip()
         
-        # 示例查询
-        st.markdown(f'<div class="sidebar-title">💡 {t["examples"]}</div>', unsafe_allow_html=True)
-        
-        if lang == "中文":
-            examples = [
-                "分析苹果公司的趋势策略",
-                "特斯拉的布林带策略",
-                "谷歌的RSI动量策略",
-                "微软的双均线策略"
-            ]
+        if choice == "1":
+            quantgpt = quick_start()
+            return quantgpt
+            
+        elif choice == "2":
+            quantgpt = QuantGPT()
+            interactive_session(quantgpt)
+            return quantgpt
+            
+        elif choice == "3":
+            print("🔧 自定义分析模式...")
+            quantgpt = QuantGPT()
+            
+            while True:
+                print("\n🎯 自定义分析:")
+                print("- analyze <股票代码>: 完整分析")
+                print("- screen <类型>: 股票筛选")
+                print("- backtest <股票> <策略>: 回测")
+                print("- interactive: 进入交互模式")
+                print("- quit: 退出")
+                
+                cmd = input("\n自定义> ").strip().split()
+                
+                if not cmd:
+                    continue
+                elif cmd[0] == "quit":
+                    break
+                elif cmd[0] == "interactive":
+                    interactive_session(quantgpt)
+                    break
+                elif cmd[0] == "analyze" and len(cmd) > 1:
+                    quick_analyze(cmd[1], quantgpt)
+                elif cmd[0] == "screen" and len(cmd) > 1:
+                    quick_screen(cmd[1], quantgpt)
+                elif cmd[0] == "backtest" and len(cmd) > 2:
+                    result = quantgpt.run_strategy_backtest(cmd[1], cmd[2])
+                    if "error" not in result:
+                        metrics = result["metrics"]
+                        print(f"✅ 回测结果: {metrics.get('total_return', 0):.2%}")
+                    else:
+                        print(f"❌ {result['error']}")
+                else:
+                    print("❌ 无效命令")
+            
+            return quantgpt
         else:
-            examples = [
-                "Analyze AAPL trend strategy",
-                "Tesla Bollinger Bands strategy",
-                "Google RSI momentum strategy",
-                "Microsoft moving average strategy"
-            ]
-        
-        for example in examples:
-            if st.button(example, key=f"ex_{hash(example)}", use_container_width=True):
-                st.session_state.messages.append({"role": "user", "content": example})
-                response = st.session_state.analyst.generate_response(example)
-                st.session_state.messages.append({"role": "assistant", "content": response})
-                st.rerun()
-        
-        # 清除历史
-        if st.button(t["clear_history"], use_container_width=True):
-            st.session_state.messages = [st.session_state.messages[0]]
-            if 'analysis_data' in st.session_state:
-                del st.session_state.analysis_data
-            st.rerun()
+            print("❌ 无效选择")
+            return None
+            
+    except KeyboardInterrupt:
+        print("\n👋 用户取消操作")
+        return None
 
 if __name__ == "__main__":
-    main()
+    app = main()
+else:
+    print("🎉 QuantGPT系统已导入!")
+    print("🚀 使用 quick_start() 快速开始")
+    print("🎯 使用 interactive_session() 进入交互模式")
+    print("📊 使用 quick_analyze('AAPL') 快速分析")
+    print("🔍 使用 quick_screen('value') 快速筛选")
+
+print("\n✨ QuantGPT完整系统加载完成！")
