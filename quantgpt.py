@@ -3,1854 +3,1108 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+import yfinance as yf
+import re
+import json
+from typing import Dict, List, Optional, Tuple
 import warnings
-import time
-
 warnings.filterwarnings('ignore')
 
-# 配置页面
+# 页面配置 - 类似Claude.ai的简洁设计
 st.set_page_config(
-    page_title="🚀 QuantGPT - AI量化交易平台",
-    page_icon="🚀", 
+    page_title="QuantGPT - AI量化交易助手",
+    page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# 自定义CSS样式
+# Claude.ai风格的CSS
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 2rem;
-        background: linear-gradient(90deg, #1f77b4, #ff7f0e);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: bold;
+    /* 隐藏Streamlit默认元素 */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* 主容器样式 */
+    .main {
+        padding-top: 1rem;
+        max-width: 1200px;
+        margin: 0 auto;
     }
     
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 15px;
-        margin: 0.5rem 0;
-        color: white;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-    }
-    
-    .success-box {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        border-radius: 10px;
-        padding: 1rem;
+    /* 聊天容器 */
+    .chat-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         margin: 1rem 0;
-        color: white;
-        box-shadow: 0 4px 15px 0 rgba(31, 38, 135, 0.2);
+        overflow: hidden;
     }
     
-    .sidebar .stSelectbox > div > div {
-        background-color: #f0f2f6;
+    /* 用户消息样式 */
+    .user-message {
+        background: #f7f7f8;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        border-radius: 12px;
+        border-left: 4px solid #2563eb;
     }
     
+    /* AI消息样式 */
+    .ai-message {
+        background: white;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        border-radius: 12px;
+        border-left: 4px solid #10b981;
+    }
+    
+    /* 输入框样式 */
+    .stTextInput > div > div > input {
+        border-radius: 25px;
+        border: 2px solid #e5e7eb;
+        padding: 12px 20px;
+        font-size: 16px;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    
+    /* 按钮样式 */
     .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         color: white;
         border: none;
         border-radius: 25px;
-        padding: 0.5rem 2rem;
-        font-weight: bold;
-        transition: all 0.3s;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        transition: all 0.2s;
     }
     
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
     }
     
-    .info-card {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
+    /* 头部样式 */
+    .header {
+        text-align: center;
+        padding: 2rem 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    /* 示例命令卡片 */
+    .example-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
         padding: 1rem;
-        margin: 1rem 0;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .example-card:hover {
+        background: #e2e8f0;
+        transform: translateY(-1px);
+    }
+    
+    /* 状态指示器 */
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #ecfdf5;
+        border: 1px solid #d1fae5;
+        border-radius: 20px;
+        color: #065f46;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* 加载动画 */
+    .thinking {
+        padding: 1rem;
+        text-align: center;
+        color: #6b7280;
+        font-style: italic;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .main {
+            padding: 0.5rem;
+        }
+        
+        .user-message, .ai-message {
+            padding: 1rem;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 导入QuantGPT模块
-try:
-    # 这里我们将原始代码重新定义为模块
-    import torch
-    import yfinance as yf
-    from dataclasses import dataclass
-    from typing import Dict, List, Optional
-    
-    @dataclass
-    class QuantGPTConfig:
-        """QuantGPT配置类"""
-        initial_capital: float = 100000.0
-        commission: float = 0.001
-        slippage: float = 0.0005
-        max_position_size: float = 0.2
-        risk_free_rate: float = 0.02
-        sentiment_model: str = "ProsusAI/finbert"
-        device: str = "cuda" if torch.cuda.is_available() else "cpu"
-        default_period: str = "2y"
-        min_data_points: int = 200
-
-    @dataclass
-    class AdvancedScreeningCriteria:
-        """高级股票筛选条件"""
-        pe_ratio_min: Optional[float] = None
-        pe_ratio_max: Optional[float] = None
-        pb_ratio_max: Optional[float] = None
-        debt_to_equity_max: Optional[float] = None
-        roe_min: Optional[float] = None
-        dividend_yield_min: Optional[float] = None
-        market_cap_min: Optional[float] = None
-        revenue_growth_min: Optional[float] = None
-        current_ratio_min: Optional[float] = None
-        gross_margin_min: Optional[float] = None
-
-    class AIAnalysisEngine:
-        """AI驱动的金融分析引擎"""
+# 核心QuantGPT类定义
+class QuantGPTCore:
+    def __init__(self):
+        self.cache = {}
         
-        def __init__(self, config: QuantGPTConfig):
-            self.config = config
-            self.sentiment_analyzer = None
-            
-        def generate_market_insight(self, symbol: str, price_data: pd.DataFrame, 
-                                  news_sentiment: float = 0.5) -> Dict:
-            """生成AI驱动的市场洞察"""
-            
-            current_price = price_data['Close'].iloc[-1]
-            prev_price = price_data['Close'].iloc[-2] if len(price_data) > 1 else current_price
-            price_change = (current_price - prev_price) / prev_price if prev_price != 0 else 0
-            
-            # 计算移动平均
-            sma_20 = price_data['Close'].rolling(20).mean().iloc[-1] if len(price_data) >= 20 else current_price
-            sma_50 = price_data['Close'].rolling(50).mean().iloc[-1] if len(price_data) >= 50 else current_price
-            
-            # 计算RSI
-            delta = price_data['Close'].diff()
-            gain = delta.where(delta > 0, 0).rolling(14).mean()
-            loss = -delta.where(delta < 0, 0).rolling(14).mean()
-            rs = gain / loss
-            rsi = 100 - (100 / (1 + rs))
-            current_rsi = rsi.iloc[-1] if not rsi.empty else 50
-            
-            # AI评分逻辑
-            sentiment_score = news_sentiment
-            technical_score = 0.5
-            
-            if current_price > sma_20 > sma_50:
-                technical_score += 0.3
-            if current_rsi < 30:
-                technical_score += 0.2
-            elif current_rsi > 70:
-                technical_score -= 0.2
-                
-            combined_score = (sentiment_score * 0.4 + technical_score * 0.6)
-            
-            # 生成建议
-            if combined_score > 0.7:
-                recommendation = "🟢 强烈买入"
-                reason = "技术面和基本面都显示强劲上涨信号"
-            elif combined_score > 0.6:
-                recommendation = "🟡 买入"
-                reason = "总体趋势积极，建议逢低买入"
-            elif combined_score < 0.3:
-                recommendation = "🔴 卖出"
-                reason = "多重负面信号，建议减仓"
-            elif combined_score < 0.4:
-                recommendation = "🟡 观望"
-                reason = "信号混合，建议等待更明确的方向"
-            else:
-                recommendation = "🟡 持有"
-                reason = "当前趋势不明确，维持现有仓位"
-                
-            return {
-                "symbol": symbol,
-                "current_price": current_price,
-                "price_change_pct": price_change * 100,
-                "technical_indicators": {
-                    "sma_20": sma_20,
-                    "sma_50": sma_50,
-                    "rsi": current_rsi
-                },
-                "ai_scores": {
-                    "sentiment_score": sentiment_score,
-                    "technical_score": technical_score,
-                    "combined_score": combined_score
-                },
-                "recommendation": recommendation,
-                "reasoning": reason,
-                "confidence": abs(combined_score - 0.5) * 2,
-                "timestamp": datetime.now().isoformat()
-            }
-
-    class DataManager:
-        """金融数据管理器"""
+    def get_stock_data(self, symbol: str, period: str = "1y") -> pd.DataFrame:
+        """获取股票数据"""
+        cache_key = f"{symbol}_{period}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
         
-        def __init__(self, config: QuantGPTConfig):
-            self.config = config
-            self.cache = {}
-        
-        def get_stock_data(self, symbol: str, period: str = None) -> Optional[pd.DataFrame]:
-            """获取股票数据"""
-            period = period or self.config.default_period
-            cache_key = f"{symbol}_{period}"
-            
-            if cache_key in self.cache:
-                return self.cache[cache_key]
-            
-            try:
-                ticker = yf.Ticker(symbol)
-                data = ticker.history(period=period)
-                
-                if data.empty or len(data) < 50:  # 降低最低要求
-                    return None
-                    
-                # 数据清洗
-                for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-                    if col in data.columns:
-                        data[col] = pd.to_numeric(data[col], errors='coerce')
-                
-                data = data.dropna()
-                self.cache[cache_key] = data
-                return data
-                
-            except Exception as e:
-                st.error(f"获取 {symbol} 数据失败: {e}")
-                return None
-        
-        def get_stock_info(self, symbol: str) -> Dict:
-            """获取股票基本信息"""
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
-                return {
-                    "name": info.get("longName", symbol),
-                    "sector": info.get("sector", "Unknown"),
-                    "industry": info.get("industry", "Unknown"),
-                    "market_cap": info.get("marketCap", 0),
-                    "pe_ratio": info.get("trailingPE", 0),
-                    "dividend_yield": info.get("dividendYield", 0)
-                }
-            except:
-                return {"name": symbol, "sector": "Unknown"}
-
-    class TechnicalIndicators:
-        """技术指标计算器"""
-        
-        @staticmethod
-        def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
-            """为数据添加所有技术指标"""
-            df = df.copy()
-            close = df['Close']
-            
-            # 移动平均
-            df['SMA_20'] = close.rolling(20).mean()
-            df['SMA_50'] = close.rolling(50).mean()
-            df['EMA_12'] = close.ewm(span=12).mean()
-            df['EMA_26'] = close.ewm(span=26).mean()
-            
-            # RSI
-            delta = close.diff()
-            gain = delta.where(delta > 0, 0).rolling(14).mean()
-            loss = -delta.where(delta < 0, 0).rolling(14).mean()
-            rs = gain / loss
-            df['RSI'] = 100 - (100 / (1 + rs))
-            
-            # MACD
-            df['MACD'] = df['EMA_12'] - df['EMA_26']
-            df['MACD_Signal'] = df['MACD'].ewm(span=9).mean()
-            df['MACD_Histogram'] = df['MACD'] - df['MACD_Signal']
-            
-            # 布林带
-            sma_20 = close.rolling(20).mean()
-            std_20 = close.rolling(20).std()
-            df['BB_Upper'] = sma_20 + (std_20 * 2)
-            df['BB_Lower'] = sma_20 - (std_20 * 2)
-            df['BB_Middle'] = sma_20
-            
-            return df
-
-    class StrategyEngine:
-        """交易策略引擎"""
-        
-        def __init__(self, config: QuantGPTConfig):
-            self.config = config
-            
-        def sma_crossover_strategy(self, data: pd.DataFrame) -> pd.DataFrame:
-            """移动平均交叉策略"""
-            df = TechnicalIndicators.add_all_indicators(data)
-            df['Signal'] = 0
-            df['Signal'][20:] = np.where(df['SMA_20'][20:] > df['SMA_50'][20:], 1, 0)
-            df['Position'] = df['Signal'].diff()
-            return df
-        
-        def rsi_strategy(self, data: pd.DataFrame) -> pd.DataFrame:
-            """RSI策略"""
-            df = TechnicalIndicators.add_all_indicators(data)
-            df['Signal'] = 0
-            df.loc[df['RSI'] < 30, 'Signal'] = 1
-            df.loc[df['RSI'] > 70, 'Signal'] = -1
-            df['Position'] = df['Signal'].diff()
-            return df
-
-    class BacktestEngine:
-        """回测引擎"""
-        
-        def __init__(self, config: QuantGPTConfig):
-            self.config = config
-            
-        def execute_backtest(self, strategy_data: pd.DataFrame, symbol: str) -> Dict:
-            """执行回测"""
-            capital = self.config.initial_capital
-            positions = 0
-            trades = []
-            portfolio_values = []
-            
-            for i, (date, row) in enumerate(strategy_data.iterrows()):
-                current_price = row['Close']
-                position_change = row.get('Position', 0)
-                
-                if pd.isna(position_change):
-                    position_change = 0
-                
-                # 买入信号
-                if position_change == 1 and positions == 0:
-                    shares_to_buy = int((capital * self.config.max_position_size) / current_price)
-                    if shares_to_buy > 0:
-                        cost = shares_to_buy * current_price * (1 + self.config.commission)
-                        if cost <= capital:
-                            capital -= cost
-                            positions = shares_to_buy
-                            trades.append({
-                                'date': date,
-                                'action': 'BUY',
-                                'shares': shares_to_buy,
-                                'price': current_price,
-                                'value': cost
-                            })
-                
-                # 卖出信号
-                elif position_change == -1 and positions > 0:
-                    revenue = positions * current_price * (1 - self.config.commission)
-                    capital += revenue
-                    trades.append({
-                        'date': date,
-                        'action': 'SELL',
-                        'shares': positions,
-                        'price': current_price,
-                        'value': revenue
-                    })
-                    positions = 0
-                
-                portfolio_value = capital + positions * current_price
-                portfolio_values.append(portfolio_value)
-            
-            strategy_data = strategy_data.copy()
-            strategy_data['Portfolio_Value'] = portfolio_values
-            
-            # 计算绩效指标
-            metrics = self._calculate_metrics(strategy_data, symbol)
-            
-            return {
-                'data': strategy_data,
-                'trades': trades,
-                'metrics': metrics,
-                'final_value': portfolio_values[-1] if portfolio_values else self.config.initial_capital
-            }
-        
-        def _calculate_metrics(self, data: pd.DataFrame, symbol: str) -> Dict:
-            """计算绩效指标"""
-            if 'Portfolio_Value' not in data.columns:
-                return {}
-            
-            portfolio_values = data['Portfolio_Value']
-            returns = portfolio_values.pct_change().dropna()
-            
-            total_return = (portfolio_values.iloc[-1] - self.config.initial_capital) / self.config.initial_capital
-            annual_volatility = returns.std() * np.sqrt(252) if len(returns) > 1 else 0
-            
-            excess_returns = returns - self.config.risk_free_rate / 252
-            sharpe_ratio = (excess_returns.mean() / excess_returns.std() * np.sqrt(252)) if excess_returns.std() != 0 else 0
-            
-            # 最大回撤
-            cumulative = (1 + returns).cumprod()
-            rolling_max = cumulative.expanding().max()
-            drawdowns = (cumulative - rolling_max) / rolling_max
-            max_drawdown = drawdowns.min() if not drawdowns.empty else 0
-            
-            return {
-                'symbol': symbol,
-                'total_return': total_return,
-                'annual_volatility': annual_volatility,
-                'sharpe_ratio': sharpe_ratio,
-                'max_drawdown': max_drawdown,
-                'final_value': portfolio_values.iloc[-1]
-            }
-
-    class FundamentalAnalysisEngine:
-        """基本面分析引擎"""
-        
-        def get_fundamental_data(self, symbol: str) -> Dict:
-            """获取基本面数据"""
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
-                
-                fundamental_data = {
-                    "symbol": symbol,
-                    "company_name": info.get("longName", symbol),
-                    "pe_ratio": info.get("trailingPE", None),
-                    "pb_ratio": info.get("priceToBook", None),
-                    "roe": info.get("returnOnEquity", None),
-                    "debt_to_equity": info.get("debtToEquity", None),
-                    "current_ratio": info.get("currentRatio", None),
-                    "dividend_yield": info.get("dividendYield", None),
-                    "market_cap": info.get("marketCap", None),
-                    "sector": info.get("sector", "Unknown"),
-                    "industry": info.get("industry", "Unknown"),
-                }
-                
-                # 计算基本面评分
-                score = 50
-                pe = fundamental_data.get("pe_ratio")
-                if pe and 0 < pe < 15:
-                    score += 15
-                elif pe and 15 <= pe <= 25:
-                    score += 10
-                
-                roe = fundamental_data.get("roe")
-                if roe and roe > 0.2:
-                    score += 15
-                elif roe and roe > 0.15:
-                    score += 10
-                
-                fundamental_data["fundamental_score"] = max(0, min(100, score))
-                
-                return fundamental_data
-                
-            except Exception as e:
-                return {"symbol": symbol, "error": str(e)}
-
-    class ScreeningPresets:
-        """筛选预设"""
-        
-        @staticmethod
-        def value_stocks():
-            return AdvancedScreeningCriteria(
-                pe_ratio_max=15,
-                pb_ratio_max=2,
-                debt_to_equity_max=0.5,
-                roe_min=10,
-                dividend_yield_min=2
-            )
-        
-        @staticmethod
-        def growth_stocks():
-            return AdvancedScreeningCriteria(
-                revenue_growth_min=15,
-                roe_min=15,
-                gross_margin_min=40,
-                pe_ratio_max=40
-            )
-
-    class QuantGPT:
-        """QuantGPT主应用类"""
-        
-        def __init__(self, config: QuantGPTConfig = None):
-            self.config = config or QuantGPTConfig()
-            self.ai_engine = AIAnalysisEngine(self.config)
-            self.data_manager = DataManager(self.config)
-            self.strategy_engine = StrategyEngine(self.config)
-            self.backtest_engine = BacktestEngine(self.config)
-            self.fundamental_engine = FundamentalAnalysisEngine()
-        
-        def analyze_stock(self, symbol: str, period: str = "1y") -> Dict:
-            """分析股票"""
-            data = self.data_manager.get_stock_data(symbol, period)
-            if data is None:
-                return {"error": f"无法获取{symbol}数据"}
-            
-            stock_info = self.data_manager.get_stock_info(symbol)
-            insight = self.ai_engine.generate_market_insight(symbol, data)
-            fundamental_data = self.fundamental_engine.get_fundamental_data(symbol)
-            
-            return {
-                "symbol": symbol,
-                "stock_info": stock_info,
-                "data": data,
-                "ai_insight": insight,
-                "fundamental_analysis": fundamental_data,
-                "analysis_date": datetime.now().isoformat()
-            }
-        
-        def run_strategy_backtest(self, symbol: str, strategy_name: str, period: str = "1y") -> Dict:
-            """运行策略回测"""
-            data = self.data_manager.get_stock_data(symbol, period)
-            if data is None:
-                return {"error": f"无法获取{symbol}数据"}
-            
-            if strategy_name == "sma_crossover":
-                strategy_data = self.strategy_engine.sma_crossover_strategy(data)
-            elif strategy_name == "rsi":
-                strategy_data = self.strategy_engine.rsi_strategy(data)
-            else:
-                return {"error": f"未知策略: {strategy_name}"}
-            
-            backtest_result = self.backtest_engine.execute_backtest(strategy_data, symbol)
-            backtest_result['strategy_name'] = strategy_name
-            
-            return backtest_result
-        
-        def screen_stocks_basic(self, criteria, symbols=None):
-            """股票筛选"""
-            if symbols is None:
-                symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA", "AMZN", "META", "NFLX"]
-            
-            results = []
-            for symbol in symbols:
-                try:
-                    fundamental = self.fundamental_engine.get_fundamental_data(symbol)
-                    if "error" not in fundamental:
-                        results.append({
-                            "symbol": symbol,
-                            "fundamental_score": fundamental.get("fundamental_score", 0),
-                            "pe_ratio": fundamental.get("pe_ratio"),
-                            "roe": fundamental.get("roe"),
-                            "sector": fundamental.get("sector")
-                        })
-                except:
-                    continue
-            
-            results.sort(key=lambda x: x["fundamental_score"], reverse=True)
-            return results
-
-    # 缓存初始化
-    @st.cache_resource
-    def initialize_quantgpt():
-        """初始化QuantGPT系统"""
-        return QuantGPT()
-
-except Exception as e:
-    st.error(f"❌ 模块导入失败: {e}")
-    st.stop()
-
-# 主标题和介绍
-st.markdown('<h1 class="main-header">🚀 QuantGPT - AI量化交易平台</h1>', unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown('<div class="info-card">🤖 <b>AI驱动分析</b><br/>智能情感分析与市场洞察</div>', unsafe_allow_html=True)
-with col2:
-    st.markdown('<div class="info-card">📊 <b>专业回测</b><br/>多策略回测与绩效分析</div>', unsafe_allow_html=True)
-with col3:
-    st.markdown('<div class="info-card">🔍 <b>智能筛选</b><br/>基本面与技术面综合筛选</div>', unsafe_allow_html=True)
-
-# 侧边栏配置
-with st.sidebar:
-    st.header("🎯 功能导航")
-    
-    app_mode = st.selectbox(
-        "选择功能模块",
-        ["📊 股票分析", "🔬 策略回测", "🔍 股票筛选", "📈 多策略比较", "💎 基本面分析"],
-        index=0
-    )
-    
-    st.markdown("---")
-    st.subheader("⚙️ 系统设置")
-    
-    initial_capital = st.number_input("初始资金 ($)", value=100000, min_value=1000, step=1000)
-    commission = st.number_input("手续费率", value=0.001, min_value=0.0, max_value=0.1, format="%.4f")
-    
-    st.markdown("---")
-    st.markdown("### 📈 市场概览")
-    
-    # 显示一些市场信息
-    market_indices = {
-        "S&P 500": "^GSPC",
-        "NASDAQ": "^IXIC", 
-        "道琼斯": "^DJI"
-    }
-    
-    for name, symbol in market_indices.items():
         try:
             ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="2d")
-            if len(hist) >= 2:
-                current = hist['Close'].iloc[-1]
-                prev = hist['Close'].iloc[-2]
-                change = (current - prev) / prev * 100
-                color = "green" if change > 0 else "red"
-                st.markdown(f"**{name}**: <span style='color:{color}'>{change:+.2f}%</span>", unsafe_allow_html=True)
+            data = ticker.history(period=period)
+            if not data.empty:
+                self.cache[cache_key] = data
+                return data
         except:
-            st.markdown(f"**{name}**: 数据获取中...")
+            pass
+        return pd.DataFrame()
+    
+    def get_fundamental_data(self, symbol: str) -> Dict:
+        """获取基本面数据"""
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            return {
+                "symbol": symbol,
+                "name": info.get("longName", symbol),
+                "sector": info.get("sector", "Unknown"),
+                "pe_ratio": info.get("trailingPE"),
+                "pb_ratio": info.get("priceToBook"),
+                "market_cap": info.get("marketCap"),
+                "dividend_yield": info.get("dividendYield"),
+                "roe": info.get("returnOnEquity"),
+                "debt_to_equity": info.get("debtToEquity"),
+                "current_ratio": info.get("currentRatio"),
+                "price": info.get("currentPrice") or info.get("regularMarketPrice"),
+                "revenue_growth": info.get("revenueGrowth"),
+                "profit_margins": info.get("profitMargins")
+            }
+        except:
+            return {"symbol": symbol, "error": "无法获取数据"}
+    
+    def calculate_technical_indicators(self, data: pd.DataFrame) -> Dict:
+        """计算技术指标"""
+        if data.empty:
+            return {}
+        
+        close = data['Close']
+        
+        # RSI
+        delta = close.diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        # 移动平均
+        sma_20 = close.rolling(20).mean()
+        sma_50 = close.rolling(50).mean()
+        
+        # MACD
+        ema_12 = close.ewm(span=12).mean()
+        ema_26 = close.ewm(span=26).mean()
+        macd = ema_12 - ema_26
+        signal = macd.ewm(span=9).mean()
+        
+        # 布林带
+        sma_20_bb = close.rolling(20).mean()
+        std_20 = close.rolling(20).std()
+        bb_upper = sma_20_bb + (std_20 * 2)
+        bb_lower = sma_20_bb - (std_20 * 2)
+        
+        return {
+            "rsi": rsi.iloc[-1] if not rsi.empty else None,
+            "sma_20": sma_20.iloc[-1] if not sma_20.empty else None,
+            "sma_50": sma_50.iloc[-1] if not sma_50.empty else None,
+            "macd": macd.iloc[-1] if not macd.empty else None,
+            "macd_signal": signal.iloc[-1] if not signal.empty else None,
+            "bb_upper": bb_upper.iloc[-1] if not bb_upper.empty else None,
+            "bb_lower": bb_lower.iloc[-1] if not bb_lower.empty else None,
+            "current_price": close.iloc[-1] if not close.empty else None,
+            "volume": data['Volume'].iloc[-1] if 'Volume' in data.columns else None
+        }
 
-# 初始化系统
-try:
-    with st.spinner("🤖 正在初始化QuantGPT系统..."):
-        quantgpt = initialize_quantgpt()
+class NLPCommandParser:
+    """自然语言命令解析器"""
     
-    # 成功初始化提示
-    st.success("✅ QuantGPT系统初始化完成！AI模型已加载，准备为您服务。")
+    def __init__(self):
+        self.patterns = {
+            'analyze': [
+                r'分析\s*([A-Z]{1,5})',
+                r'帮我分析\s*([A-Z]{1,5})',
+                r'analyze\s*([A-Z]{1,5})',
+                r'给我看看\s*([A-Z]{1,5})',
+                r'([A-Z]{1,5})\s*怎么样',
+                r'([A-Z]{1,5})\s*的情况'
+            ],
+            'compare': [
+                r'比较\s*([A-Z]{1,5})\s*和\s*([A-Z]{1,5})',
+                r'([A-Z]{1,5})\s*vs\s*([A-Z]{1,5})',
+                r'帮我比较\s*([A-Z]{1,5})\s*和\s*([A-Z]{1,5})',
+                r'对比\s*([A-Z]{1,5})\s*和\s*([A-Z]{1,5})'
+            ],
+            'backtest': [
+                r'回测\s*([A-Z]{1,5})\s*(.*?)策略',
+                r'帮我回测\s*([A-Z]{1,5})',
+                r'backtest\s*([A-Z]{1,5})',
+                r'测试\s*([A-Z]{1,5})\s*的策略'
+            ],
+            'screen': [
+                r'筛选.*?(PE|市盈率).*?([<>=]).*?(\d+\.?\d*)',
+                r'筛选.*?(PB|市净率).*?([<>=]).*?(\d+\.?\d*)',
+                r'筛选.*?(ROE).*?([<>=]).*?(\d+\.?\d*)',
+                r'筛选.*?(RSI).*?([<>=]).*?(\d+\.?\d*)',
+                r'筛选.*?(价格|股价).*?([<>=]).*?(\d+\.?\d*)',
+                r'筛选.*?(市值).*?([<>=]).*?(\d+\.?\d*)',
+                r'找.*?(高分红|分红).*?股票',
+                r'找.*?(成长).*?股票',
+                r'找.*?(价值).*?股票'
+            ]
+        }
     
-except Exception as e:
-    st.error(f"❌ 系统初始化失败: {e}")
-    st.stop()
-
-# 主功能区域
-if app_mode == "📊 股票分析":
-    st.header("📊 AI智能股票分析")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        symbol = st.text_input(
-            "🔍 输入股票代码", 
-            value="AAPL", 
-            help="输入美股代码，如 AAPL, GOOGL, TSLA 等",
-            placeholder="例如: AAPL"
-        )
-    
-    with col2:
-        period = st.selectbox(
-            "📅 分析周期", 
-            ["1mo", "3mo", "6mo", "1y", "2y", "5y"], 
-            index=3
-        )
-    
-    if st.button("🚀 开始AI分析", type="primary", use_container_width=True):
-        if symbol:
-            with st.spinner(f"🤖 正在深度分析 {symbol.upper()}..."):
-                try:
-                    result = quantgpt.analyze_stock(symbol.upper(), period)
+    def parse_command(self, text: str) -> Dict:
+        """解析自然语言命令"""
+        text = text.upper().strip()
+        
+        # 分析单只股票
+        for pattern in self.patterns['analyze']:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return {
+                    'action': 'analyze',
+                    'symbol': match.group(1),
+                    'confidence': 0.9
+                }
+        
+        # 比较两只股票
+        for pattern in self.patterns['compare']:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return {
+                    'action': 'compare',
+                    'symbols': [match.group(1), match.group(2)],
+                    'confidence': 0.9
+                }
+        
+        # 回测策略
+        for pattern in self.patterns['backtest']:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                strategy = 'sma_crossover'  # 默认策略
+                if 'RSI' in text:
+                    strategy = 'rsi'
+                elif 'MACD' in text:
+                    strategy = 'macd'
+                
+                return {
+                    'action': 'backtest',
+                    'symbol': match.group(1),
+                    'strategy': strategy,
+                    'confidence': 0.8
+                }
+        
+        # 股票筛选
+        for pattern in self.patterns['screen']:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                if '高分红' in text or '分红' in text:
+                    return {
+                        'action': 'screen',
+                        'type': 'dividend',
+                        'confidence': 0.8
+                    }
+                elif '成长' in text:
+                    return {
+                        'action': 'screen',
+                        'type': 'growth',
+                        'confidence': 0.8
+                    }
+                elif '价值' in text:
+                    return {
+                        'action': 'screen',
+                        'type': 'value',
+                        'confidence': 0.8
+                    }
+                else:
+                    # 具体指标筛选
+                    indicator = match.group(1)
+                    operator = match.group(2)
+                    value = float(match.group(3))
                     
-                    if "error" not in result:
-                        insight = result["ai_insight"]
-                        
-                        # AI分析结果
-                        st.subheader("🤖 AI分析结果")
-                        
-                        # 关键指标
-                        col1, col2, col3, col4 = st.columns(4)
-                        
-                        with col1:
-                            st.metric(
-                                "💰 当前价格", 
-                                f"${insight['current_price']:.2f}",
-                                delta=f"{insight['price_change_pct']:+.2f}%"
-                            )
-                        
-                        with col2:
-                            score = insight['ai_scores']['combined_score'] * 100
-                            st.metric("🎯 AI评分", f"{score:.1f}/100")
-                        
-                        with col3:
-                            st.metric("📊 置信度", f"{insight['confidence']*100:.1f}%")
-                        
-                        with col4:
-                            rsi = insight['technical_indicators']['rsi']
-                            st.metric("📈 RSI", f"{rsi:.1f}")
-                        
-                        # AI建议
-                        st.markdown("### 🎯 AI投资建议")
-                        
-                        recommendation_color = {
-                            "🟢 强烈买入": "green",
-                            "🟡 买入": "orange", 
-                            "🟡 持有": "blue",
-                            "🟡 观望": "gray",
-                            "🔴 卖出": "red"
-                        }
-                        
-                        rec_color = recommendation_color.get(insight['recommendation'], "blue")
-                        
-                        st.markdown(f"""
-                        <div style='background: linear-gradient(135deg, {rec_color}22, {rec_color}11); 
-                                   border-left: 4px solid {rec_color}; 
-                                   padding: 1rem; border-radius: 5px; margin: 1rem 0;'>
-                            <h4 style='color: {rec_color}; margin: 0;'>{insight['recommendation']}</h4>
-                            <p style='margin: 0.5rem 0 0 0;'>{insight['reasoning']}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # 技术指标详情
-                        st.subheader("📈 技术指标分析")
-                        tech_col1, tech_col2, tech_col3 = st.columns(3)
-                        
-                        with tech_col1:
-                            st.metric("📊 SMA 20", f"${insight['technical_indicators']['sma_20']:.2f}")
-                        with tech_col2:
-                            st.metric("📊 SMA 50", f"${insight['technical_indicators']['sma_50']:.2f}")
-                        with tech_col3:
-                            st.metric("⚡ RSI", f"{insight['technical_indicators']['rsi']:.1f}")
-                        
-                        # 价格走势图
-                        st.subheader("📊 价格走势与技术指标")
-                        
-                        data = result["data"]
-                        
-                        # 创建子图
-                        fig = make_subplots(
-                            rows=2, cols=1,
-                            subplot_titles=('价格走势', 'RSI指标'),
-                            vertical_spacing=0.1,
-                            row_heights=[0.7, 0.3]
-                        )
-                        
-                        # 价格线
-                        fig.add_trace(
-                            go.Scatter(
-                                x=data.index,
-                                y=data['Close'],
-                                mode='lines',
-                                name='收盘价',
-                                line=dict(color='#1f77b4', width=2)
-                            ),
-                            row=1, col=1
-                        )
-                        
-                        # 移动平均线
-                        if len(data) >= 20:
-                            sma_20 = data['Close'].rolling(20).mean()
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=data.index,
-                                    y=sma_20,
-                                    mode='lines',
-                                    name='SMA 20',
-                                    line=dict(color='orange', width=1)
-                                ),
-                                row=1, col=1
-                            )
-                        
-                        if len(data) >= 50:
-                            sma_50 = data['Close'].rolling(50).mean()
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=data.index,
-                                    y=sma_50,
-                                    mode='lines',
-                                    name='SMA 50',
-                                    line=dict(color='red', width=1)
-                                ),
-                                row=1, col=1
-                            )
-                        
-                        # RSI指标
-                        if len(data) >= 14:
-                            delta = data['Close'].diff()
-                            gain = delta.where(delta > 0, 0).rolling(14).mean()
-                            loss = -delta.where(delta < 0, 0).rolling(14).mean()
-                            rs = gain / loss
-                            rsi = 100 - (100 / (1 + rs))
-                            
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=data.index,
-                                    y=rsi,
-                                    mode='lines',
-                                    name='RSI',
-                                    line=dict(color='purple', width=2)
-                                ),
-                                row=2, col=1
-                            )
-                            
-                            # RSI超买超卖线
-                            fig.add_hline(y=70, line_dash="dash", line_color="red", opacity=0.7, row=2, col=1)
-                            fig.add_hline(y=30, line_dash="dash", line_color="green", opacity=0.7, row=2, col=1)
-                        
-                        fig.update_layout(
-                            title=f"{symbol.upper()} 技术分析图表",
-                            height=600,
-                            showlegend=True,
-                            xaxis_title="日期",
-                            yaxis_title="价格 ($)",
-                            xaxis2_title="日期",
-                            yaxis2_title="RSI"
-                        )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # 基本面分析
-                        if "fundamental_analysis" in result and "error" not in result["fundamental_analysis"]:
-                            fund = result["fundamental_analysis"]
-                            
-                            st.subheader("💎 基本面分析")
-                            
-                            fund_col1, fund_col2 = st.columns(2)
-                            
-                            with fund_col1:
-                                st.markdown("**📋 公司信息**")
-                                st.write(f"• 公司名称: {fund.get('company_name', 'N/A')}")
-                                st.write(f"• 行业板块: {fund.get('sector', 'N/A')}")
-                                st.write(f"• 细分行业: {fund.get('industry', 'N/A')}")
-                                
-                                market_cap = fund.get('market_cap', 0)
-                                if market_cap and market_cap > 0:
-                                    market_cap_b = market_cap / 1e9
-                                    st.write(f"• 市值: ${market_cap_b:.1f}B")
-                            
-                            with fund_col2:
-                                st.markdown("**📊 财务指标**")
-                                pe_ratio = fund.get('pe_ratio')
-                                if pe_ratio:
-                                    st.write(f"• PE比率: {pe_ratio:.2f}")
-                                
-                                pb_ratio = fund.get('pb_ratio')
-                                if pb_ratio:
-                                    st.write(f"• PB比率: {pb_ratio:.2f}")
-                                
-                                roe = fund.get('roe')
-                                if roe:
-                                    st.write(f"• ROE: {roe*100:.1f}%")
-                                
-                                dividend_yield = fund.get('dividend_yield')
-                                if dividend_yield:
-                                    st.write(f"• 股息率: {dividend_yield*100:.2f}%")
-                                
-                                score = fund.get('fundamental_score', 0)
-                                st.write(f"• **基本面评分: {score:.1f}/100**")
-                        
-                        # 成交量分析
-                        st.subheader("📊 成交量分析")
-                        
-                        vol_fig = go.Figure()
-                        vol_fig.add_trace(
-                            go.Bar(
-                                x=data.index,
-                                y=data['Volume'],
-                                name='成交量',
-                                marker_color='lightblue',
-                                opacity=0.7
-                            )
-                        )
-                        
-                        # 成交量移动平均
-                        if len(data) >= 20:
-                            vol_sma = data['Volume'].rolling(20).mean()
-                            vol_fig.add_trace(
-                                go.Scatter(
-                                    x=data.index,
-                                    y=vol_sma,
-                                    mode='lines',
-                                    name='成交量均线',
-                                    line=dict(color='red', width=2)
-                                )
-                            )
-                        
-                        vol_fig.update_layout(
-                            title=f"{symbol.upper()} 成交量分析",
-                            xaxis_title="日期",
-                            yaxis_title="成交量",
-                            height=300
-                        )
-                        
-                        st.plotly_chart(vol_fig, use_container_width=True)
-                        
-                    else:
-                        st.error(f"❌ {result['error']}")
-                        
-                except Exception as e:
-                    st.error(f"❌ 分析过程中发生错误: {str(e)}")
-        else:
-            st.warning("⚠️ 请输入股票代码")
+                    return {
+                        'action': 'screen',
+                        'type': 'custom',
+                        'indicator': indicator,
+                        'operator': operator,
+                        'value': value,
+                        'confidence': 0.9
+                    }
+        
+        return {'action': 'unknown', 'confidence': 0.0}
 
-elif app_mode == "🔬 策略回测":
-    st.header("🔬 交易策略回测")
+class QuantGPTChatbot:
+    """QuantGPT聊天机器人"""
     
-    # 策略配置
-    col1, col2, col3 = st.columns(3)
+    def __init__(self):
+        self.core = QuantGPTCore()
+        self.parser = NLPCommandParser()
+        self.default_symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA", "AMZN", "META", "NFLX", "JPM", "JNJ"]
     
-    with col1:
-        bt_symbol = st.text_input("股票代码", value="AAPL", placeholder="例如: AAPL")
-    
-    with col2:
-        strategy = st.selectbox(
-            "选择策略", 
-            ["sma_crossover", "rsi"],
-            format_func=lambda x: {"sma_crossover": "📈 移动平均交叉", "rsi": "⚡ RSI策略"}[x]
-        )
-    
-    with col3:
-        bt_period = st.selectbox("回测周期", ["6mo", "1y", "2y", "3y", "5y"], index=1)
-    
-    # 策略说明
-    strategy_descriptions = {
-        "sma_crossover": "📈 **移动平均交叉策略**: 当短期均线(20日)上穿长期均线(50日)时买入，下穿时卖出",
-        "rsi": "⚡ **RSI策略**: 当RSI低于30时买入(超卖)，高于70时卖出(超买)"
-    }
-    
-    st.info(strategy_descriptions[strategy])
-    
-    if st.button("🚀 开始回测", type="primary", use_container_width=True):
-        if bt_symbol:
-            with st.spinner(f"🔬 正在回测 {bt_symbol.upper()} - {strategy}策略..."):
-                try:
-                    result = quantgpt.run_strategy_backtest(bt_symbol.upper(), strategy, bt_period)
-                    
-                    if "error" not in result:
-                        metrics = result["metrics"]
-                        
-                        st.subheader("📊 回测结果")
-                        
-                        # 核心绩效指标
-                        perf_col1, perf_col2, perf_col3, perf_col4 = st.columns(4)
-                        
-                        with perf_col1:
-                            total_return = metrics.get('total_return', 0)
-                            color = "normal" if total_return >= 0 else "inverse"
-                            st.metric(
-                                "📈 总收益率", 
-                                f"{total_return:.2%}",
-                                delta=f"{total_return:.2%}",
-                                delta_color=color
-                            )
-                        
-                        with perf_col2:
-                            volatility = metrics.get('annual_volatility', 0)
-                            st.metric("📊 年化波动率", f"{volatility:.2%}")
-                        
-                        with perf_col3:
-                            sharpe = metrics.get('sharpe_ratio', 0)
-                            st.metric("⚡ 夏普比率", f"{sharpe:.3f}")
-                        
-                        with perf_col4:
-                            max_dd = metrics.get('max_drawdown', 0)
-                            st.metric("📉 最大回撤", f"{max_dd:.2%}")
-                        
-                        # 详细指标
-                        st.subheader("📋 详细绩效分析")
-                        
-                        detail_col1, detail_col2 = st.columns(2)
-                        
-                        with detail_col1:
-                            st.markdown("**💰 收益指标**")
-                            final_value = metrics.get('final_value', initial_capital)
-                            profit = final_value - initial_capital
-                            st.write(f"• 初始资金: ${initial_capital:,.2f}")
-                            st.write(f"• 最终价值: ${final_value:,.2f}")
-                            st.write(f"• 绝对收益: ${profit:,.2f}")
-                            
-                        with detail_col2:
-                            st.markdown("**📊 风险指标**")
-                            st.write(f"• 年化波动率: {volatility:.2%}")
-                            st.write(f"• 最大回撤: {max_dd:.2%}")
-                            st.write(f"• 夏普比率: {sharpe:.3f}")
-                        
-                        # 收益曲线图
-                        if 'data' in result and 'Portfolio_Value' in result['data'].columns:
-                            st.subheader("📈 策略收益曲线")
-                            
-                            strategy_data = result['data']
-                            
-                            # 创建收益对比图
-                            fig = go.Figure()
-                            
-                            # 策略收益曲线
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=strategy_data.index,
-                                    y=strategy_data['Portfolio_Value'],
-                                    mode='lines',
-                                    name=f'{strategy}策略',
-                                    line=dict(color='green', width=3)
-                                )
-                            )
-                            
-                            # 基准收益曲线(买入持有)
-                            initial_shares = initial_capital / strategy_data['Close'].iloc[0]
-                            benchmark_values = initial_shares * strategy_data['Close']
-                            
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=strategy_data.index,
-                                    y=benchmark_values,
-                                    mode='lines',
-                                    name='买入持有基准',
-                                    line=dict(color='blue', width=2, dash='dash')
-                                )
-                            )
-                            
-                            # 添加买卖信号
-                            if 'Position' in strategy_data.columns:
-                                buy_signals = strategy_data[strategy_data['Position'] == 1]
-                                sell_signals = strategy_data[strategy_data['Position'] == -1]
-                                
-                                if not buy_signals.empty:
-                                    fig.add_trace(
-                                        go.Scatter(
-                                            x=buy_signals.index,
-                                            y=buy_signals['Portfolio_Value'],
-                                            mode='markers',
-                                            name='买入信号',
-                                            marker=dict(
-                                                color='red',
-                                                size=10,
-                                                symbol='triangle-up'
-                                            )
-                                        )
-                                    )
-                                
-                                if not sell_signals.empty:
-                                    fig.add_trace(
-                                        go.Scatter(
-                                            x=sell_signals.index,
-                                            y=sell_signals['Portfolio_Value'],
-                                            mode='markers',
-                                            name='卖出信号',
-                                            marker=dict(
-                                                color='blue',
-                                                size=10,
-                                                symbol='triangle-down'
-                                            )
-                                        )
-                                    )
-                            
-                            fig.update_layout(
-                                title=f"{bt_symbol.upper()} - {strategy}策略 vs 基准对比",
-                                xaxis_title="日期",
-                                yaxis_title="组合价值 ($)",
-                                height=500,
-                                hovermode='x unified'
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # 交易记录
-                            if result.get('trades'):
-                                st.subheader("📋 交易记录")
-                                
-                                trades_df = pd.DataFrame(result['trades'])
-                                trades_df['date'] = pd.to_datetime(trades_df['date']).dt.strftime('%Y-%m-%d')
-                                trades_df['price'] = trades_df['price'].round(2)
-                                trades_df['value'] = trades_df['value'].round(2)
-                                
-                                # 格式化显示
-                                st.dataframe(
-                                    trades_df,
-                                    use_container_width=True,
-                                    column_config={
-                                        "date": "日期",
-                                        "action": "操作",
-                                        "shares": "股数",
-                                        "price": st.column_config.NumberColumn("价格 ($)", format="%.2f"),
-                                        "value": st.column_config.NumberColumn("金额 ($)", format="%.2f")
-                                    }
-                                )
-                                
-                                # 交易统计
-                                if len(trades_df) > 0:
-                                    st.markdown("**📊 交易统计**")
-                                    total_trades = len(trades_df) // 2
-                                    buy_trades = len(trades_df[trades_df['action'] == 'BUY'])
-                                    sell_trades = len(trades_df[trades_df['action'] == 'SELL'])
-                                    
-                                    trade_col1, trade_col2, trade_col3 = st.columns(3)
-                                    with trade_col1:
-                                        st.metric("总交易次数", total_trades)
-                                    with trade_col2:
-                                        st.metric("买入次数", buy_trades)
-                                    with trade_col3:
-                                        st.metric("卖出次数", sell_trades)
-                        
-                        # 策略评价
-                        st.subheader("🎯 策略评价")
-                        
-                        if sharpe > 1:
-                            evaluation = "🟢 **优秀策略** - 夏普比率>1，风险调整后收益良好"
-                            eval_color = "green"
-                        elif sharpe > 0.5:
-                            evaluation = "🟡 **一般策略** - 夏普比率>0.5，有一定投资价值"
-                            eval_color = "orange"
-                        elif sharpe > 0:
-                            evaluation = "🟠 **较弱策略** - 夏普比率>0，但风险调整后收益较低"
-                            eval_color = "orange"
-                        else:
-                            evaluation = "🔴 **风险策略** - 夏普比率<0，风险调整后亏损"
-                            eval_color = "red"
-                        
-                        st.markdown(f"""
-                        <div style='background: linear-gradient(135deg, {eval_color}22, {eval_color}11); 
-                                   border-left: 4px solid {eval_color}; 
-                                   padding: 1rem; border-radius: 5px;'>
-                            {evaluation}
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                    else:
-                        st.error(f"❌ {result['error']}")
-                        
-                except Exception as e:
-                    st.error(f"❌ 回测过程中发生错误: {str(e)}")
+    def analyze_stock(self, symbol: str) -> Dict:
+        """分析单只股票"""
+        # 获取数据
+        data = self.core.get_stock_data(symbol)
+        fundamental = self.core.get_fundamental_data(symbol)
+        
+        if data.empty:
+            return {"error": f"无法获取 {symbol} 的数据"}
+        
+        technical = self.core.calculate_technical_indicators(data)
+        
+        # 生成分析结果
+        current_price = technical.get('current_price', 0)
+        rsi = technical.get('rsi', 50)
+        
+        # AI建议逻辑
+        signals = []
+        if rsi < 30:
+            signals.append("RSI显示超卖，可能是买入机会")
+        elif rsi > 70:
+            signals.append("RSI显示超买，注意风险")
+        
+        if technical.get('sma_20', 0) > technical.get('sma_50', 0):
+            signals.append("短期趋势向上")
         else:
-            st.warning("⚠️ 请输入股票代码")
-
-elif app_mode == "🔍 股票筛选":
-    st.header("🔍 智能股票筛选")
+            signals.append("短期趋势向下")
+        
+        # PE估值分析
+        pe = fundamental.get('pe_ratio')
+        if pe:
+            if pe < 15:
+                signals.append("PE估值偏低，可能被低估")
+            elif pe > 30:
+                signals.append("PE估值偏高，注意泡沫风险")
+        
+        return {
+            "symbol": symbol,
+            "name": fundamental.get('name', symbol),
+            "current_price": current_price,
+            "technical": technical,
+            "fundamental": fundamental,
+            "signals": signals,
+            "recommendation": self._generate_recommendation(technical, fundamental)
+        }
     
-    # 筛选预设选择
-    preset_type = st.selectbox(
-        "📋 选择筛选策略",
-        ["value", "growth"],
-        format_func=lambda x: {"value": "💎 价值投资策略", "growth": "🚀 成长投资策略"}[x]
-    )
+    def compare_stocks(self, symbols: List[str]) -> Dict:
+        """比较股票"""
+        results = {}
+        for symbol in symbols:
+            analysis = self.analyze_stock(symbol)
+            if "error" not in analysis:
+                results[symbol] = analysis
+        
+        if len(results) < 2:
+            return {"error": "无法获取足够的股票数据进行比较"}
+        
+        # 生成比较结论
+        comparison = self._generate_comparison(results)
+        
+        return {
+            "symbols": symbols,
+            "analyses": results,
+            "comparison": comparison
+        }
     
-    # 策略说明
-    strategy_info = {
-        "value": "💎 **价值投资策略**: 寻找PE低、PB低、有分红、财务稳健的被低估股票",
-        "growth": "🚀 **成长投资策略**: 寻找营收增长快、ROE高、毛利率高的高成长股票"
-    }
+    def backtest_strategy(self, symbol: str, strategy: str = "sma_crossover") -> Dict:
+        """回测策略"""
+        data = self.core.get_stock_data(symbol, "2y")
+        
+        if data.empty:
+            return {"error": f"无法获取 {symbol} 的历史数据"}
+        
+        # 简化的回测逻辑
+        if strategy == "sma_crossover":
+            return self._backtest_sma_crossover(symbol, data)
+        elif strategy == "rsi":
+            return self._backtest_rsi(symbol, data)
+        else:
+            return {"error": f"不支持的策略: {strategy}"}
     
-    st.info(strategy_info[preset_type])
-    
-    # 自定义股票池
-    with st.expander("📝 自定义股票池 (可选)"):
-        custom_symbols = st.text_area(
-            "输入股票代码（用逗号分隔）",
-            value="AAPL,GOOGL,MSFT,TSLA,NVDA,AMZN,META,NFLX,JPM,JNJ,PG,KO,DIS,V,MA",
-            help="默认使用热门股票池，您也可以输入自定义的股票代码"
-        )
-    
-    if st.button("🔍 开始筛选", type="primary", use_container_width=True):
-        with st.spinner("🔍 正在筛选优质股票..."):
+    def screen_stocks(self, criteria: Dict) -> Dict:
+        """筛选股票"""
+        results = []
+        
+        for symbol in self.default_symbols:
             try:
-                # 解析股票列表
-                if custom_symbols.strip():
-                    symbols = [s.strip().upper() for s in custom_symbols.split(',') if s.strip()]
-                else:
-                    symbols = None
+                fundamental = self.core.get_fundamental_data(symbol)
+                data = self.core.get_stock_data(symbol)
                 
-                # 获取筛选条件
-                if preset_type == "value":
-                    criteria = ScreeningPresets.value_stocks()
-                else:
-                    criteria = ScreeningPresets.growth_stocks()
+                if "error" in fundamental or data.empty:
+                    continue
                 
-                # 执行筛选
-                results = quantgpt.screen_stocks_basic(criteria, symbols)
+                technical = self.core.calculate_technical_indicators(data)
                 
-                if results:
-                    st.success(f"✅ 筛选完成！找到 {len(results)} 只符合条件的股票")
-                    
-                    # 结果展示
-                    st.subheader("📊 筛选结果")
-                    
-                    # 转换为DataFrame方便显示
-                    df = pd.DataFrame(results)
-                    
-                    # 格式化数据
-                    if 'pe_ratio' in df.columns:
-                        df['pe_ratio'] = df['pe_ratio'].round(2)
-                    if 'roe' in df.columns:
-                        df['roe'] = (df['roe'] * 100).round(1)  # 转为百分比
-                    
-                    # 重命名列
-                    column_mapping = {
-                        'symbol': '股票代码',
-                        'fundamental_score': '基本面评分',
-                        'pe_ratio': 'PE比率',
-                        'roe': 'ROE(%)',
-                        'sector': '行业'
-                    }
-                    
-                    df_display = df.rename(columns=column_mapping)
-                    
-                    # 配置列显示
-                    column_config = {
-                        "股票代码": st.column_config.TextColumn("股票代码", width="small"),
-                        "基本面评分": st.column_config.NumberColumn(
-                            "基本面评分",
-                            format="%.1f",
-                            min_value=0,
-                            max_value=100
-                        ),
-                        "PE比率": st.column_config.NumberColumn("PE比率", format="%.2f"),
-                        "ROE(%)": st.column_config.NumberColumn("ROE(%)", format="%.1f"),
-                        "行业": st.column_config.TextColumn("行业", width="medium")
-                    }
-                    
-                    st.dataframe(
-                        df_display,
-                        use_container_width=True,
-                        column_config=column_config,
-                        hide_index=True
-                    )
-                    
-                    # 可视化分析
-                    if len(results) > 1:
-                        st.subheader("📈 可视化分析")
-                        
-                        viz_tab1, viz_tab2, viz_tab3 = st.tabs(["📊 评分分布", "🎯 PE vs ROE", "🏭 行业分布"])
-                        
-                        with viz_tab1:
-                            # 基本面评分分布
-                            score_fig = px.histogram(
-                                df, 
-                                x='fundamental_score',
-                                nbins=20,
-                                title="基本面评分分布",
-                                labels={'fundamental_score': '基本面评分', 'count': '股票数量'}
-                            )
-                            score_fig.update_layout(height=400)
-                            st.plotly_chart(score_fig, use_container_width=True)
-                        
-                        with viz_tab2:
-                            # PE vs ROE 散点图
-                            if 'pe_ratio' in df.columns and 'roe' in df.columns:
-                                scatter_fig = px.scatter(
-                                    df,
-                                    x='pe_ratio',
-                                    y='roe',
-                                    size='fundamental_score',
-                                    color='sector',
-                                    hover_data=['symbol'],
-                                    title="PE比率 vs ROE分布",
-                                    labels={'pe_ratio': 'PE比率', 'roe': 'ROE'}
-                                )
-                                scatter_fig.update_layout(height=500)
-                                st.plotly_chart(scatter_fig, use_container_width=True)
-                            else:
-                                st.info("数据不足，无法绘制PE vs ROE图表")
-                        
-                        with viz_tab3:
-                            # 行业分布
-                            if 'sector' in df.columns:
-                                sector_counts = df['sector'].value_counts()
-                                
-                                pie_fig = px.pie(
-                                    values=sector_counts.values,
-                                    names=sector_counts.index,
-                                    title="筛选结果行业分布"
-                                )
-                                pie_fig.update_layout(height=400)
-                                st.plotly_chart(pie_fig, use_container_width=True)
-                            else:
-                                st.info("行业信息不足，无法绘制分布图")
-                    
-                    # 推荐股票
-                    st.subheader("⭐ 推荐关注")
-                    
-                    top_stocks = results[:3]  # 取前3只评分最高的
-                    
-                    for i, stock in enumerate(top_stocks, 1):
-                        with st.container():
-                            rec_col1, rec_col2 = st.columns([1, 3])
-                            
-                            with rec_col1:
-                                st.markdown(f"### #{i} {stock['symbol']}")
-                                st.markdown(f"**评分: {stock['fundamental_score']:.1f}/100**")
-                            
-                            with rec_col2:
-                                st.markdown(f"**行业**: {stock.get('sector', 'N/A')}")
-                                if stock.get('pe_ratio'):
-                                    st.markdown(f"**PE比率**: {stock['pe_ratio']:.2f}")
-                                if stock.get('roe'):
-                                    st.markdown(f"**ROE**: {stock['roe']*100:.1f}%")
-                        
-                        st.markdown("---")
-                
-                else:
-                    st.warning("⚠️ 根据当前筛选条件，未找到符合要求的股票。建议放宽筛选条件或更换股票池。")
-                    
-            except Exception as e:
-                st.error(f"❌ 筛选过程中发生错误: {str(e)}")
-
-elif app_mode == "📈 多策略比较":
-    st.header("📈 多策略投资组合比较")
+                # 应用筛选条件
+                if self._meets_criteria(fundamental, technical, criteria):
+                    results.append({
+                        "symbol": symbol,
+                        "name": fundamental.get('name', symbol),
+                        "price": technical.get('current_price'),
+                        "pe_ratio": fundamental.get('pe_ratio'),
+                        "market_cap": fundamental.get('market_cap'),
+                        "sector": fundamental.get('sector'),
+                        "rsi": technical.get('rsi')
+                    })
+            except:
+                continue
+        
+        # 按市值排序
+        results.sort(key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
+        
+        return {
+            "criteria": criteria,
+            "results": results,
+            "count": len(results)
+        }
     
-    comp_symbol = st.text_input("🔍 输入股票代码", value="AAPL", placeholder="例如: AAPL")
-    comp_period = st.selectbox("📅 比较周期", ["6mo", "1y", "2y", "3y"], index=1)
-    
-    if st.button("🚀 开始策略比较", type="primary", use_container_width=True):
-        if comp_symbol:
-            with st.spinner(f"📈 正在比较 {comp_symbol.upper()} 的多个策略..."):
-                try:
-                    strategies = ["sma_crossover", "rsi"]
-                    strategy_names = {
-                        "sma_crossover": "📈 移动平均交叉",
-                        "rsi": "⚡ RSI策略"
-                    }
-                    
-                    results = {}
-                    
-                    # 运行各个策略
-                    for strategy in strategies:
-                        result = quantgpt.run_strategy_backtest(comp_symbol.upper(), strategy, comp_period)
-                        if "error" not in result:
-                            results[strategy] = result
-                    
-                    if results:
-                        st.success(f"✅ 策略比较完成！共比较了 {len(results)} 个策略")
-                        
-                        # 策略比较表
-                        st.subheader("📊 策略绩效对比")
-                        
-                        comparison_data = []
-                        for strategy, data in results.items():
-                            metrics = data["metrics"]
-                            comparison_data.append({
-                                "策略名称": strategy_names[strategy],
-                                "总收益率": f"{metrics.get('total_return', 0):.2%}",
-                                "年化波动率": f"{metrics.get('annual_volatility', 0):.2%}",
-                                "夏普比率": f"{metrics.get('sharpe_ratio', 0):.3f}",
-                                "最大回撤": f"{metrics.get('max_drawdown', 0):.2%}",
-                                "最终价值": f"${metrics.get('final_value', 0):,.2f}"
-                            })
-                        
-                        df_comparison = pd.DataFrame(comparison_data)
-                        st.dataframe(df_comparison, use_container_width=True, hide_index=True)
-                        
-                        # 找出最佳策略
-                        best_strategy = max(results.keys(), 
-                                          key=lambda x: results[x]['metrics'].get('sharpe_ratio', 0))
-                        best_sharpe = results[best_strategy]['metrics'].get('sharpe_ratio', 0)
-                        
-                        st.success(f"🏆 **最佳策略**: {strategy_names[best_strategy]} (夏普比率: {best_sharpe:.3f})")
-                        
-                        # 策略收益对比图
-                        st.subheader("📊 收益曲线对比")
-                        
-                        fig = go.Figure()
-                        
-                        colors = ['green', 'blue', 'red', 'orange', 'purple']
-                        
-                        for i, (strategy, data) in enumerate(results.items()):
-                            if 'data' in data and 'Portfolio_Value' in data['data'].columns:
-                                portfolio_data = data['data']
-                                fig.add_trace(
-                                    go.Scatter(
-                                        x=portfolio_data.index,
-                                        y=portfolio_data['Portfolio_Value'],
-                                        mode='lines',
-                                        name=strategy_names[strategy],
-                                        line=dict(width=3, color=colors[i % len(colors)])
-                                    )
-                                )
-                        
-                        # 添加基准线
-                        first_result = list(results.values())[0]
-                        if 'data' in first_result:
-                            benchmark_data = first_result['data']
-                            initial_shares = initial_capital / benchmark_data['Close'].iloc[0]
-                            benchmark_values = initial_shares * benchmark_data['Close']
-                            
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=benchmark_data.index,
-                                    y=benchmark_values,
-                                    mode='lines',
-                                    name='📊 买入持有基准',
-                                    line=dict(width=2, color='gray', dash='dash')
-                                )
-                            )
-                        
-                        fig.update_layout(
-                            title=f"{comp_symbol.upper()} 多策略收益对比",
-                            xaxis_title="日期",
-                            yaxis_title="组合价值 ($)",
-                            height=500,
-                            hovermode='x unified'
-                        )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # 风险收益散点图
-                        st.subheader("🎯 风险收益分析")
-                        
-                        risk_return_data = []
-                        for strategy, data in results.items():
-                            metrics = data["metrics"]
-                            risk_return_data.append({
-                                "策略": strategy_names[strategy],
-                                "收益率": metrics.get('total_return', 0) * 100,
-                                "波动率": metrics.get('annual_volatility', 0) * 100,
-                                "夏普比率": metrics.get('sharpe_ratio', 0)
-                            })
-                        
-                        df_risk_return = pd.DataFrame(risk_return_data)
-                        
-                        scatter_fig = px.scatter(
-                            df_risk_return,
-                            x='波动率',
-                            y='收益率',
-                            size='夏普比率',
-                            color='策略',
-                            title="策略风险收益分布图",
-                            labels={'波动率': '年化波动率 (%)', '收益率': '总收益率 (%)'},
-                            hover_data=['夏普比率']
-                        )
-                        
-                        scatter_fig.update_layout(height=400)
-                        st.plotly_chart(scatter_fig, use_container_width=True)
-                        
-                        # 策略建议
-                        st.subheader("💡 投资建议")
-                        
-                        best_return_strategy = max(results.keys(), 
-                                                 key=lambda x: results[x]['metrics'].get('total_return', 0))
-                        best_return = results[best_return_strategy]['metrics'].get('total_return', 0)
-                        
-                        lowest_risk_strategy = min(results.keys(), 
-                                                 key=lambda x: results[x]['metrics'].get('annual_volatility', float('inf')))
-                        lowest_risk = results[lowest_risk_strategy]['metrics'].get('annual_volatility', 0)
-                        
-                        rec_col1, rec_col2 = st.columns(2)
-                        
-                        with rec_col1:
-                            st.markdown(f"""
-                            **🏆 最高收益策略**
-                            - 策略: {strategy_names[best_return_strategy]}
-                            - 总收益率: {best_return:.2%}
-                            - 适合: 追求高收益的激进投资者
-                            """)
-                        
-                        with rec_col2:
-                            st.markdown(f"""
-                            **🛡️ 最低风险策略**
-                            - 策略: {strategy_names[lowest_risk_strategy]}
-                            - 年化波动率: {lowest_risk:.2%}
-                            - 适合: 偏好稳健的保守投资者
-                            """)
-                        
-                        st.markdown(f"""
-                        **🎯 综合推荐**: {strategy_names[best_strategy]}
-                        - 原因: 该策略在风险调整后收益最优(夏普比率最高)
-                        - 夏普比率: {best_sharpe:.3f}
-                        - 适合: 追求风险调整后收益的理性投资者
-                        """)
-                        
-                    else:
-                        st.error("❌ 所有策略都运行失败，请检查股票代码或网络连接")
-                        
-                except Exception as e:
-                    st.error(f"❌ 策略比较过程中发生错误: {str(e)}")
+    def _generate_recommendation(self, technical: Dict, fundamental: Dict) -> str:
+        """生成投资建议"""
+        score = 0
+        
+        # 技术面评分
+        rsi = technical.get('rsi', 50)
+        if 30 <= rsi <= 70:
+            score += 1
+        
+        if technical.get('sma_20', 0) > technical.get('sma_50', 0):
+            score += 1
+        
+        # 基本面评分
+        pe = fundamental.get('pe_ratio')
+        if pe and 10 <= pe <= 25:
+            score += 1
+        
+        if fundamental.get('roe') and fundamental.get('roe') > 0.15:
+            score += 1
+        
+        # 生成建议
+        if score >= 3:
+            return "🟢 建议买入 - 技术面和基本面都较为理想"
+        elif score >= 2:
+            return "🟡 可以关注 - 部分指标表现良好"
         else:
-            st.warning("⚠️ 请输入股票代码")
-
-elif app_mode == "💎 基本面分析":
-    st.header("💎 深度基本面分析")
+            return "🔴 建议观望 - 多项指标需要改善"
     
-    fund_symbol = st.text_input("🔍 输入股票代码", value="AAPL", placeholder="例如: AAPL")
-    
-    if st.button("📊 获取基本面数据", type="primary", use_container_width=True):
-        if fund_symbol:
-            with st.spinner(f"💎 正在获取 {fund_symbol.upper()} 深度基本面数据..."):
-                try:
-                    result = quantgpt.fundamental_engine.get_fundamental_data(fund_symbol.upper())
-                    
-                    if "error" not in result:
-                        st.success("✅ 基本面数据获取成功")
-                        
-                        # 公司概览
-                        st.subheader("🏢 公司概览")
-                        
-                        overview_col1, overview_col2 = st.columns(2)
-                        
-                        with overview_col1:
-                            st.markdown("**📋 基本信息**")
-                            st.write(f"• **公司名称**: {result.get('company_name', 'N/A')}")
-                            st.write(f"• **股票代码**: {result.get('symbol', 'N/A')}")
-                            st.write(f"• **行业板块**: {result.get('sector', 'N/A')}")
-                            st.write(f"• **细分行业**: {result.get('industry', 'N/A')}")
-                        
-                        with overview_col2:
-                            st.markdown("**💰 市场数据**")
-                            market_cap = result.get('market_cap', 0)
-                            if market_cap and market_cap > 0:
-                                if market_cap >= 1e12:
-                                    market_cap_str = f"${market_cap/1e12:.2f}T"
-                                elif market_cap >= 1e9:
-                                    market_cap_str = f"${market_cap/1e9:.1f}B"
-                                elif market_cap >= 1e6:
-                                    market_cap_str = f"${market_cap/1e6:.1f}M"
-                                else:
-                                    market_cap_str = f"${market_cap:,.0f}"
-                                st.write(f"• **市值**: {market_cap_str}")
-                            
-                            score = result.get('fundamental_score', 0)
-                            st.write(f"• **基本面评分**: {score:.1f}/100")
-                        
-                        # 估值指标
-                        st.subheader("💰 估值指标")
-                        
-                        val_col1, val_col2, val_col3, val_col4 = st.columns(4)
-                        
-                        with val_col1:
-                            pe = result.get('pe_ratio')
-                            if pe:
-                                pe_color = "green" if pe < 20 else "orange" if pe < 30 else "red"
-                                st.metric("PE比率", f"{pe:.2f}")
-                                if pe < 15:
-                                    st.success("估值偏低")
-                                elif pe > 30:
-                                    st.warning("估值偏高")
-                            else:
-                                st.metric("PE比率", "N/A")
-                        
-                        with val_col2:
-                            pb = result.get('pb_ratio')
-                            if pb:
-                                st.metric("PB比率", f"{pb:.2f}")
-                                if pb < 2:
-                                    st.success("账面价值合理")
-                                elif pb > 5:
-                                    st.warning("账面价值偏高")
-                            else:
-                                st.metric("PB比率", "N/A")
-                        
-                        with val_col3:
-                            ps = result.get('ps_ratio')
-                            if ps:
-                                st.metric("PS比率", f"{ps:.2f}")
-                            else:
-                                st.metric("PS比率", "N/A")
-                        
-                        with val_col4:
-                            peg = result.get('peg_ratio')
-                            if peg:
-                                st.metric("PEG比率", f"{peg:.2f}")
-                                if peg < 1:
-                                    st.success("成长估值合理")
-                                elif peg > 2:
-                                    st.warning("成长估值偏高")
-                            else:
-                                st.metric("PEG比率", "N/A")
-                        
-                        # 盈利能力
-                        st.subheader("📈 盈利能力")
-                        
-                        prof_col1, prof_col2, prof_col3 = st.columns(3)
-                        
-                        with prof_col1:
-                            roe = result.get('roe')
-                            if roe:
-                                roe_pct = roe * 100
-                                st.metric("ROE (净资产收益率)", f"{roe_pct:.1f}%")
-                                if roe_pct > 20:
-                                    st.success("盈利能力优秀")
-                                elif roe_pct > 15:
-                                    st.info("盈利能力良好")
-                                elif roe_pct < 10:
-                                    st.warning("盈利能力较弱")
-                            else:
-                                st.metric("ROE", "N/A")
-                        
-                        with prof_col2:
-                            roa = result.get('roa')
-                            if roa:
-                                roa_pct = roa * 100
-                                st.metric("ROA (总资产收益率)", f"{roa_pct:.1f}%")
-                                if roa_pct > 10:
-                                    st.success("资产使用效率高")
-                                elif roa_pct < 5:
-                                    st.warning("资产使用效率低")
-                            else:
-                                st.metric("ROA", "N/A")
-                        
-                        with prof_col3:
-                            gross_margin = result.get('gross_margin')
-                            if gross_margin:
-                                gm_pct = gross_margin * 100
-                                st.metric("毛利率", f"{gm_pct:.1f}%")
-                                if gm_pct > 50:
-                                    st.success("毛利率优秀")
-                                elif gm_pct > 30:
-                                    st.info("毛利率良好")
-                                elif gm_pct < 20:
-                                    st.warning("毛利率较低")
-                            else:
-                                st.metric("毛利率", "N/A")
-                        
-                        # 财务健康
-                        st.subheader("💪 财务健康度")
-                        
-                        health_col1, health_col2, health_col3 = st.columns(3)
-                        
-                        with health_col1:
-                            debt_eq = result.get('debt_to_equity')
-                            if debt_eq:
-                                st.metric("债务股权比", f"{debt_eq:.2f}")
-                                if debt_eq < 0.3:
-                                    st.success("债务水平健康")
-                                elif debt_eq > 1.0:
-                                    st.warning("债务水平较高")
-                            else:
-                                st.metric("债务股权比", "N/A")
-                        
-                        with health_col2:
-                            current_ratio = result.get('current_ratio')
-                            if current_ratio:
-                                st.metric("流动比率", f"{current_ratio:.2f}")
-                                if current_ratio > 2:
-                                    st.success("流动性充足")
-                                elif current_ratio < 1:
-                                    st.warning("流动性不足")
-                            else:
-                                st.metric("流动比率", "N/A")
-                        
-                        with health_col3:
-                            quick_ratio = result.get('quick_ratio')
-                            if quick_ratio:
-                                st.metric("速动比率", f"{quick_ratio:.2f}")
-                                if quick_ratio > 1:
-                                    st.success("短期偿债能力强")
-                                elif quick_ratio < 0.5:
-                                    st.warning("短期偿债能力弱")
-                            else:
-                                st.metric("速动比率", "N/A")
-                        
-                        # 股息信息
-                        dividend_yield = result.get('dividend_yield')
-                        dividend_rate = result.get('dividend_rate')
-                        payout_ratio = result.get('payout_ratio')
-                        
-                        if dividend_yield or dividend_rate:
-                            st.subheader("💵 股息分析")
-                            
-                            div_col1, div_col2, div_col3 = st.columns(3)
-                            
-                            with div_col1:
-                                if dividend_yield:
-                                    dy_pct = dividend_yield * 100
-                                    st.metric("股息率", f"{dy_pct:.2f}%")
-                                    if dy_pct > 4:
-                                        st.success("高股息收益")
-                                    elif dy_pct > 2:
-                                        st.info("适中股息收益")
-                                else:
-                                    st.metric("股息率", "N/A")
-                            
-                            with div_col2:
-                                if dividend_rate:
-                                    st.metric("年度股息", f"${dividend_rate:.2f}")
-                                else:
-                                    st.metric("年度股息", "N/A")
-                            
-                            with div_col3:
-                                if payout_ratio:
-                                    pr_pct = payout_ratio * 100
-                                    st.metric("分红比率", f"{pr_pct:.1f}%")
-                                    if pr_pct > 80:
-                                        st.warning("分红比率较高")
-                                    elif pr_pct < 30:
-                                        st.info("保留盈利较多")
-                                else:
-                                    st.metric("分红比率", "N/A")
-                        
-                        # 综合评价
-                        st.subheader("🎯 综合投资评价")
-                        
-                        score = result.get('fundamental_score', 0)
-                        
-                        if score >= 80:
-                            rating = "🟢 优秀"
-                            description = "基本面表现优异，值得重点关注"
-                            color = "green"
-                        elif score >= 70:
-                            rating = "🟡 良好"
-                            description = "基本面表现良好，可以考虑投资"
-                            color = "blue"
-                        elif score >= 60:
-                            rating = "🟠 一般"
-                            description = "基本面表现一般，需要谨慎考虑"
-                            color = "orange"
-                        else:
-                            rating = "🔴 较差"
-                            description = "基本面表现较差，建议回避"
-                            color = "red"
-                        
-                        st.markdown(f"""
-                        <div style='background: linear-gradient(135deg, {color}22, {color}11); 
-                                   border-left: 4px solid {color}; 
-                                   padding: 1.5rem; border-radius: 10px; margin: 1rem 0;'>
-                            <h4 style='color: {color}; margin: 0;'>评级: {rating} ({score:.1f}/100)</h4>
-                            <p style='margin: 0.5rem 0 0 0; font-size: 1.1rem;'>{description}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # 关键指标雷达图
-                        st.subheader("📊 关键指标雷达图")
-                        
-                        # 构建雷达图数据
-                        radar_categories = []
-                        radar_values = []
-                        
-                        # PE评分 (越低越好，满分100)
-                        if pe:
-                            pe_score = max(0, min(100, 100 - (pe - 10) * 5)) if pe > 10 else 100
-                            radar_categories.append('PE估值')
-                            radar_values.append(pe_score)
-                        
-                        # ROE评分
-                        if roe:
-                            roe_score = min(100, roe * 500)  # ROE*100*5
-                            radar_categories.append('盈利能力')
-                            radar_values.append(roe_score)
-                        
-                        # 债务健康评分 (债务越低越好)
-                        if debt_eq is not None:
-                            debt_score = max(0, min(100, 100 - debt_eq * 50))
-                            radar_categories.append('财务健康')
-                            radar_values.append(debt_score)
-                        
-                        # 流动性评分
-                        if current_ratio:
-                            liquidity_score = min(100, current_ratio * 50)
-                            radar_categories.append('流动性')
-                            radar_values.append(liquidity_score)
-                        
-                        # 股息评分
-                        if dividend_yield:
-                            dividend_score = min(100, dividend_yield * 2500)  # 4%股息率=100分
-                            radar_categories.append('股息收益')
-                            radar_values.append(dividend_score)
-                        
-                        if len(radar_categories) >= 3:
-                            radar_fig = go.Figure()
-                            
-                            radar_fig.add_trace(go.Scatterpolar(
-                                r=radar_values,
-                                theta=radar_categories,
-                                fill='toself',
-                                name=fund_symbol.upper(),
-                                line_color='rgb(106, 81, 163)'
-                            ))
-                            
-                            radar_fig.update_layout(
-                                polar=dict(
-                                    radialaxis=dict(
-                                        visible=True,
-                                        range=[0, 100]
-                                    )),
-                                showlegend=True,
-                                title="基本面指标雷达图",
-                                height=500
-                            )
-                            
-                            st.plotly_chart(radar_fig, use_container_width=True)
-                        else:
-                            st.info("数据不足，无法生成雷达图")
-                        
-                    else:
-                        st.error(f"❌ {result['error']}")
-                        
-                except Exception as e:
-                    st.error(f"❌ 获取基本面数据时发生错误: {str(e)}")
+    def _generate_comparison(self, results: Dict) -> str:
+        """生成比较结论"""
+        symbols = list(results.keys())
+        if len(symbols) != 2:
+            return "比较数据不足"
+        
+        stock1, stock2 = symbols[0], symbols[1]
+        data1, data2 = results[stock1], results[stock2]
+        
+        comparisons = []
+        
+        # 价格比较
+        price1 = data1.get('current_price', 0)
+        price2 = data2.get('current_price', 0)
+        if price1 and price2:
+            if price1 > price2:
+                comparisons.append(f"{stock1} 价格更高 (${price1:.2f} vs ${price2:.2f})")
+            else:
+                comparisons.append(f"{stock2} 价格更高 (${price2:.2f} vs ${price1:.2f})")
+        
+        # PE比较
+        pe1 = data1['fundamental'].get('pe_ratio')
+        pe2 = data2['fundamental'].get('pe_ratio')
+        if pe1 and pe2:
+            if pe1 < pe2:
+                comparisons.append(f"{stock1} PE更低，估值可能更合理 ({pe1:.1f} vs {pe2:.1f})")
+            else:
+                comparisons.append(f"{stock2} PE更低，估值可能更合理 ({pe2:.1f} vs {pe1:.1f})")
+        
+        # RSI比较
+        rsi1 = data1['technical'].get('rsi', 50)
+        rsi2 = data2['technical'].get('rsi', 50)
+        if abs(rsi1 - 50) < abs(rsi2 - 50):
+            comparisons.append(f"{stock1} RSI更接近中性区域，技术面更稳定")
         else:
-            st.warning("⚠️ 请输入股票代码")
+            comparisons.append(f"{stock2} RSI更接近中性区域，技术面更稳定")
+        
+        return " | ".join(comparisons)
+    
+    def _backtest_sma_crossover(self, symbol: str, data: pd.DataFrame) -> Dict:
+        """SMA交叉策略回测"""
+        close = data['Close']
+        sma_20 = close.rolling(20).mean()
+        sma_50 = close.rolling(50).mean()
+        
+        # 生成信号
+        signals = (sma_20 > sma_50).astype(int)
+        positions = signals.diff()
+        
+        # 简化的收益计算
+        returns = close.pct_change()
+        strategy_returns = signals.shift(1) * returns
+        
+        total_return = (1 + strategy_returns).prod() - 1
+        volatility = strategy_returns.std() * np.sqrt(252)
+        sharpe = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252) if strategy_returns.std() > 0 else 0
+        
+        return {
+            "symbol": symbol,
+            "strategy": "SMA交叉策略",
+            "total_return": total_return,
+            "volatility": volatility,
+            "sharpe_ratio": sharpe,
+            "trades": len(positions[positions != 0])
+        }
+    
+    def _backtest_rsi(self, symbol: str, data: pd.DataFrame) -> Dict:
+        """RSI策略回测"""
+        close = data['Close']
+        
+        # 计算RSI
+        delta = close.diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        # 生成信号
+        signals = pd.Series(0, index=data.index)
+        signals[rsi < 30] = 1  # 超卖买入
+        signals[rsi > 70] = 0  # 超买卖出
+        
+        returns = close.pct_change()
+        strategy_returns = signals.shift(1) * returns
+        
+        total_return = (1 + strategy_returns).prod() - 1
+        volatility = strategy_returns.std() * np.sqrt(252)
+        sharpe = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252) if strategy_returns.std() > 0 else 0
+        
+        return {
+            "symbol": symbol,
+            "strategy": "RSI策略",
+            "total_return": total_return,
+            "volatility": volatility,
+            "sharpe_ratio": sharpe,
+            "trades": len(signals[signals.diff() != 0])
+        }
+    
+    def _meets_criteria(self, fundamental: Dict, technical: Dict, criteria: Dict) -> bool:
+        """检查是否满足筛选条件"""
+        if criteria.get('type') == 'dividend':
+            dividend_yield = fundamental.get('dividend_yield', 0)
+            return dividend_yield and dividend_yield > 0.03
+        
+        elif criteria.get('type') == 'growth':
+            revenue_growth = fundamental.get('revenue_growth', 0)
+            return revenue_growth and revenue_growth > 0.15
+        
+        elif criteria.get('type') == 'value':
+            pe = fundamental.get('pe_ratio', 0)
+            return pe and pe < 20
+        
+        elif criteria.get('type') == 'custom':
+            indicator = criteria.get('indicator')
+            operator = criteria.get('operator')
+            value = criteria.get('value')
+            
+            if indicator == 'PE':
+                actual_value = fundamental.get('pe_ratio')
+            elif indicator == 'PB':
+                actual_value = fundamental.get('pb_ratio')
+            elif indicator == 'RSI':
+                actual_value = technical.get('rsi')
+            elif indicator == '价格':
+                actual_value = technical.get('current_price')
+            else:
+                return False
+            
+            if actual_value is None:
+                return False
+            
+            if operator == '>':
+                return actual_value > value
+            elif operator == '<':
+                return actual_value < value
+            elif operator == '=':
+                return abs(actual_value - value) < 0.1
+            
+        return True
+    
+    def process_command(self, text: str) -> Dict:
+        """处理用户命令"""
+        parsed = self.parser.parse_command(text)
+        
+        if parsed['action'] == 'analyze':
+            return self.analyze_stock(parsed['symbol'])
+        
+        elif parsed['action'] == 'compare':
+            return self.compare_stocks(parsed['symbols'])
+        
+        elif parsed['action'] == 'backtest':
+            return self.backtest_strategy(parsed['symbol'], parsed.get('strategy', 'sma_crossover'))
+        
+        elif parsed['action'] == 'screen':
+            return self.screen_stocks(parsed)
+        
+        else:
+            return {
+                "error": "抱歉，我没有理解您的指令。请尝试以下格式：",
+                "examples": [
+                    "分析 AAPL",
+                    "比较 AAPL 和 GOOGL", 
+                    "回测 TSLA 的RSI策略",
+                    "筛选 PE < 20 的股票",
+                    "找高分红的股票"
+                ]
+            }
 
-# 页脚信息
-st.markdown("---")
+# 初始化聊天机器人
+@st.cache_resource
+def get_chatbot():
+    return QuantGPTChatbot()
 
-footer_col1, footer_col2, footer_col3 = st.columns(3)
+# 初始化会话状态
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-with footer_col1:
-    st.markdown("### 📊 数据来源")
-    st.markdown("- 股价数据: Yahoo Finance")
-    st.markdown("- AI模型: FinBERT")
-    st.markdown("- 技术指标: 自研算法")
+if "chatbot" not in st.session_state:
+    st.session_state.chatbot = get_chatbot()
 
-with footer_col2:
-    st.markdown("### ⚠️ 风险提示")
-    st.markdown("- 投资有风险，入市需谨慎")
-    st.markdown("- 本工具仅供参考，不构成投资建议")
-    st.markdown("- 请结合自身风险承受能力决策")
+# 头部
+st.markdown("""
+<div class="header">
+    <h1>🤖 QuantGPT</h1>
+    <p style="color: #6b7280; font-size: 1.1rem;">AI量化交易助手 - 专业的股票分析与交易策略平台</p>
+</div>
+""", unsafe_allow_html=True)
 
-with footer_col3:
-    st.markdown("### 🔗 相关链接")
-    st.markdown("- [GitHub源码](https://github.com)")
-    st.markdown("- [使用文档](https://docs.example.com)")
-    st.markdown("- [联系我们](mailto:contact@example.com)")
+# 状态指示器
+st.markdown("""
+<div class="status-indicator">
+    <span>🟢</span>
+    <span>系统运行正常 | AI模型已加载 | 数据连接正常</span>
+</div>
+""", unsafe_allow_html=True)
 
-# 版权信息
-st.markdown(
-    """
-    <div style='text-align: center; color: #666; margin-top: 2rem; padding: 1rem;
-               background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
-               border-radius: 10px;'>
-        🚀 <b>QuantGPT v1.0</b> - AI驱动的量化交易平台<br/>
-        由 <b>专业AI量化工程师</b> 开发 | 
-        ⭐ <a href='#' style='color: #1f77b4;'>给我们点个Star</a> | 
-        📧 <a href='#' style='color: #1f77b4;'>反馈建议</a>
-        <br/><br/>
-        <small>本项目开源免费，欢迎贡献代码和提出改进建议</small>
-    </div>
-    """, 
-    unsafe_allow_html=True
+# 示例命令 (如果没有历史消息)
+if not st.session_state.messages:
+    st.markdown("### 💡 试试这些命令:")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("📊 分析 AAPL", key="ex1"):
+            st.session_state.messages.append({"role": "user", "content": "分析 AAPL"})
+            st.rerun()
+        
+        if st.button("🔍 筛选 PE < 15 的股票", key="ex2"):
+            st.session_state.messages.append({"role": "user", "content": "筛选 PE < 15 的股票"})
+            st.rerun()
+    
+    with col2:
+        if st.button("⚖️ 比较 AAPL 和 GOOGL", key="ex3"):
+            st.session_state.messages.append({"role": "user", "content": "比较 AAPL 和 GOOGL"})
+            st.rerun()
+        
+        if st.button("🔬 回测 TSLA 的RSI策略", key="ex4"):
+            st.session_state.messages.append({"role": "user", "content": "回测 TSLA 的RSI策略"})
+            st.rerun()
+
+# 显示聊天历史
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.markdown(f"""
+        <div class="user-message">
+            <strong>🧑‍💼 您:</strong><br/>
+            {message["content"]}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="ai-message">
+            <strong>🤖 QuantGPT:</strong><br/>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 显示AI回复内容
+        if "chart_data" in message:
+            # 显示图表
+            st.plotly_chart(message["chart_data"], use_container_width=True)
+        
+        if "table_data" in message:
+            # 显示表格
+            st.dataframe(message["table_data"], use_container_width=True)
+        
+        # 显示文本内容
+        st.markdown(message["content"])
+
+# 输入框
+st.markdown("### 💬 与QuantGPT对话")
+
+# 创建输入框
+user_input = st.text_input(
+    "",
+    placeholder="请输入您的指令，例如：分析 AAPL，比较 AAPL 和 GOOGL，筛选 PE < 20 的股票...",
+    key="user_input",
+    label_visibility="collapsed"
 )
 
-# 添加实时时间显示
-with st.sidebar:
-    st.markdown("---")
-    st.markdown("### ⏰ 系统状态")
-    
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    st.markdown(f"**当前时间**: {current_time}")
-    
-    # 系统状态指示器
-    st.markdown("**系统状态**: 🟢 正常运行")
-    st.markdown("**AI引擎**: 🟢 已加载")
-    st.markdown("**数据连接**: 🟢 正常")
-    
-    # 添加一些使用提示
-    with st.expander("💡 使用提示"):
-        st.markdown("""
-        **📊 股票分析**
-        - 支持美股代码 (如AAPL, GOOGL)
-        - 提供AI驱动的投资建议
-        - 包含技术面和基本面分析
-        
-        **🔬 策略回测**
-        - 支持多种经典策略
-        - 提供详细绩效指标
-        - 可视化收益曲线
-        
-        **🔍 股票筛选**
-        - 内置价值和成长策略
-        - 支持自定义股票池
-        - 智能评分排序
-        
-        **💡 投资建议**
-        - 仅供参考，不构成投资建议
-        - 请结合自身情况谨慎决策
-        - 投资有风险，入市需谨慎
-        """)
+# 发送按钮
+col1, col2 = st.columns([6, 1])
+with col2:
+    send_button = st.button("发送", type="primary", use_container_width=True)
 
-# JavaScript增强功能
-st.markdown("""
-<script>
-// 添加一些交互增强
-document.addEventListener('DOMContentLoaded', function() {
-    // 平滑滚动
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-            e.preventDefault();
-            document.querySelector(this.getAttribute('href')).scrollIntoView({
-                behavior: 'smooth'
-            });
-        });
-    });
+# 处理用户输入
+if send_button and user_input.strip():
+    # 添加用户消息
+    st.session_state.messages.append({"role": "user", "content": user_input})
     
-    // 添加加载动画效果
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(button => {
-        button.addEventListener('click', function() {
-            if (this.textContent.includes('开始') || this.textContent.includes('获取')) {
-                this.style.transform = 'scale(0.95)';
-                setTimeout(() => {
-                    this.style.transform = 'scale(1)';
-                }, 150);
+    # 显示思考状态
+    with st.spinner("🤖 QuantGPT正在思考..."):
+        try:
+            # 处理命令
+            result = st.session_state.chatbot.process_command(user_input)
+            
+            # 生成AI回复
+            ai_response = generate_ai_response(result)
+            
+            # 添加AI消息
+            st.session_state.messages.append(ai_response)
+            
+        except Exception as e:
+            error_response = {
+                "role": "assistant",
+                "content": f"抱歉，处理您的请求时出现了错误：{str(e)}\n\n请检查网络连接或稍后重试。"
             }
-        });
-    });
-});
-</script>
+            st.session_state.messages.append(error_response)
+    
+    # 清空输入框并刷新
+    st.rerun()
+
+def generate_ai_response(result: Dict) -> Dict:
+    """生成AI回复"""
+    response = {"role": "assistant", "content": ""}
+    
+    if "error" in result:
+        if "examples" in result:
+            response["content"] = f"""
+{result['error']}
+
+**示例命令：**
+{chr(10).join(f"• {ex}" for ex in result['examples'])}
+
+**支持的功能：**
+- 📊 **股票分析**: 分析 [股票代码]
+- ⚖️ **股票比较**: 比较 [股票1] 和 [股票2]  
+- 🔬 **策略回测**: 回测 [股票代码] 的 [策略名] 策略
+- 🔍 **股票筛选**: 筛选 [指标] [操作符] [数值] 的股票
+- 🎯 **预设筛选**: 找高分红/成长/价值股票
+"""
+        else:
+            response["content"] = result['error']
+        return response
+    
+    # 股票分析结果
+    if "current_price" in result:
+        symbol = result['symbol']
+        name = result['name']
+        price = result['current_price']
+        
+        response["content"] = f"""
+## 📊 {symbol} ({name}) 分析报告
+
+### 💰 基本信息
+- **当前价格**: ${price:.2f}
+- **行业**: {result['fundamental'].get('sector', 'N/A')}
+"""
+        
+        # 技术指标
+        tech = result['technical']
+        if tech:
+            response["content"] += f"""
+### 📈 技术指标
+- **RSI**: {tech.get('rsi', 'N/A'):.1f} {'(超卖)' if tech.get('rsi', 50) < 30 else '(超买)' if tech.get('rsi', 50) > 70 else '(正常)'}
+- **SMA 20**: ${tech.get('sma_20', 0):.2f}
+- **SMA 50**: ${tech.get('sma_50', 0):.2f}
+- **趋势**: {'看涨' if tech.get('sma_20', 0) > tech.get('sma_50', 0) else '看跌'}
+"""
+        
+        # 基本面指标
+        fund = result['fundamental']
+        if fund.get('pe_ratio'):
+            response["content"] += f"""
+### 💎 基本面指标
+- **PE比率**: {fund['pe_ratio']:.2f}
+- **PB比率**: {fund.get('pb_ratio', 'N/A')}
+- **ROE**: {fund.get('roe', 0)*100:.1f}% (如果有数据)
+- **股息率**: {fund.get('dividend_yield', 0)*100:.2f}% (如果有数据)
+"""
+        
+        # AI信号
+        if result.get('signals'):
+            response["content"] += f"""
+### 🚨 关键信号
+{chr(10).join(f"• {signal}" for signal in result['signals'])}
+"""
+        
+        # 投资建议
+        response["content"] += f"""
+### 🎯 AI投资建议
+{result.get('recommendation', '建议观望')}
+"""
+        
+        # 生成价格图表
+        data = st.session_state.chatbot.core.get_stock_data(symbol)
+        if not data.empty:
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['Close'],
+                mode='lines',
+                name=f'{symbol} 股价',
+                line=dict(color='#2563eb', width=2)
+            ))
+            
+            # 添加移动平均线
+            if len(data) >= 20:
+                sma_20 = data['Close'].rolling(20).mean()
+                fig.add_trace(go.Scatter(
+                    x=data.index,
+                    y=sma_20,
+                    mode='lines',
+                    name='SMA 20',
+                    line=dict(color='orange', width=1)
+                ))
+            
+            fig.update_layout(
+                title=f'{symbol} 股价走势图',
+                xaxis_title='日期',
+                yaxis_title='价格 ($)',
+                height=400
+            )
+            
+            response["chart_data"] = fig
+    
+    # 股票比较结果
+    elif "comparison" in result:
+        symbols = result['symbols']
+        analyses = result['analyses']
+        
+        response["content"] = f"""
+## ⚖️ {' vs '.join(symbols)} 对比分析
+
+### 📊 对比结论
+{result['comparison']}
+
+### 📋 详细对比
+"""
+        
+        # 创建对比表格
+        comparison_data = []
+        for symbol, analysis in analyses.items():
+            comparison_data.append({
+                "股票": symbol,
+                "名称": analysis.get('name', symbol),
+                "当前价格": f"${analysis.get('current_price', 0):.2f}",
+                "PE比率": analysis['fundamental'].get('pe_ratio', 'N/A'),
+                "RSI": f"{analysis['technical'].get('rsi', 50):.1f}",
+                "建议": analysis.get('recommendation', '观望')
+            })
+        
+        comparison_df = pd.DataFrame(comparison_data)
+        response["table_data"] = comparison_df
+        
+        # 生成对比图表
+        fig = go.Figure()
+        for symbol, analysis in analyses.items():
+            data = st.session_state.chatbot.core.get_stock_data(symbol)
+            if not data.empty:
+                # 标准化价格 (以第一天为基准)
+                normalized_price = data['Close'] / data['Close'].iloc[0] * 100
+                fig.add_trace(go.Scatter(
+                    x=data.index,
+                    y=normalized_price,
+                    mode='lines',
+                    name=f'{symbol}',
+                    line=dict(width=2)
+                ))
+        
+        fig.update_layout(
+            title=f'{" vs ".join(symbols)} 价格表现对比 (标准化)',
+            xaxis_title='日期',
+            yaxis_title='相对表现 (%)',
+            height=400
+        )
+        
+        response["chart_data"] = fig
+    
+    # 回测结果
+    elif "strategy" in result:
+        symbol = result['symbol']
+        strategy = result['strategy']
+        total_return = result['total_return']
+        sharpe = result['sharpe_ratio']
+        
+        response["content"] = f"""
+## 🔬 {symbol} - {strategy} 回测报告
+
+### 📈 绩效指标
+- **总收益率**: {total_return:.2%}
+- **年化波动率**: {result.get('volatility', 0):.2%}
+- **夏普比率**: {sharpe:.3f}
+- **交易次数**: {result.get('trades', 0)}
+
+### 🎯 策略评估
+"""
+        
+        if sharpe > 1:
+            response["content"] += "🟢 **优秀策略** - 夏普比率>1，风险调整后收益良好"
+        elif sharpe > 0.5:
+            response["content"] += "🟡 **可接受策略** - 夏普比率>0.5，有一定投资价值"
+        elif sharpe > 0:
+            response["content"] += "🟠 **一般策略** - 夏普比率>0，但收益有限"
+        else:
+            response["content"] += "🔴 **不推荐策略** - 夏普比率<0，风险大于收益"
+        
+        response["content"] += f"""
+
+### 📋 策略说明
+"""
+        if "SMA" in strategy:
+            response["content"] += "**移动平均交叉策略**: 当短期均线(20日)上穿长期均线(50日)时买入，下穿时卖出"
+        elif "RSI" in strategy:
+            response["content"] += "**RSI策略**: 当RSI<30时买入(超卖)，RSI>70时卖出(超买)"
+    
+    # 筛选结果
+    elif "results" in result:
+        criteria = result['criteria']
+        results = result['results']
+        count = result['count']
+        
+        response["content"] = f"""
+## 🔍 股票筛选结果
+
+### 📊 筛选条件
+"""
+        
+        if criteria.get('type') == 'dividend':
+            response["content"] += "- **筛选类型**: 高分红股票 (股息率 > 3%)"
+        elif criteria.get('type') == 'growth':
+            response["content"] += "- **筛选类型**: 成长股票 (营收增长 > 15%)"
+        elif criteria.get('type') == 'value':
+            response["content"] += "- **筛选类型**: 价值股票 (PE < 20)"
+        elif criteria.get('type') == 'custom':
+            indicator = criteria.get('indicator')
+            operator = criteria.get('operator')
+            value = criteria.get('value')
+            response["content"] += f"- **筛选条件**: {indicator} {operator} {value}"
+        
+        response["content"] += f"""
+
+### 📋 筛选结果 (共找到 {count} 只股票)
+"""
+        
+        if results:
+            # 创建结果表格
+            results_data = []
+            for stock in results[:10]:  # 显示前10只
+                results_data.append({
+                    "股票代码": stock['symbol'],
+                    "公司名称": stock.get('name', stock['symbol']),
+                    "当前价格": f"${stock.get('price', 0):.2f}" if stock.get('price') else 'N/A',
+                    "PE比率": f"{stock.get('pe_ratio', 0):.2f}" if stock.get('pe_ratio') else 'N/A',
+                    "RSI": f"{stock.get('rsi', 50):.1f}" if stock.get('rsi') else 'N/A',
+                    "行业": stock.get('sector', 'N/A')
+                })
+            
+            results_df = pd.DataFrame(results_data)
+            response["table_data"] = results_df
+            
+            if count > 10:
+                response["content"] += f"\n*显示前10只股票，共筛选出{count}只符合条件的股票*"
+        else:
+            response["content"] += "\n❌ 未找到符合条件的股票，建议调整筛选条件"
+    
+    return response
+
+# 清除对话历史按钮
+if st.session_state.messages:
+    if st.button("🗑️ 清除对话历史", key="clear_chat"):
+        st.session_state.messages = []
+        st.rerun()
+
+# 侧边栏帮助信息
+with st.sidebar:
+    st.markdown("### 📚 使用指南")
+    
+    st.markdown("""
+    **🔍 股票分析**
+    - `分析 AAPL`
+    - `帮我看看 GOOGL`
+    - `TSLA 怎么样`
+    
+    **⚖️ 股票对比**
+    - `比较 AAPL 和 GOOGL`
+    - `TSLA vs NVDA`
+    - `对比 META 和 NFLX`
+    
+    **🔬 策略回测**
+    - `回测 AAPL 的SMA策略`
+    - `测试 TSLA 的RSI策略`
+    - `帮我回测 MSFT`
+    
+    **🎯 股票筛选**
+    - `筛选 PE < 20 的股票`
+    - `找 RSI > 70 的股票`
+    - `筛选高分红股票`
+    - `找成长股票`
+    - `找价值股票`
+    """)
+    
+    st.markdown("---")
+    
+    st.markdown("### ⚠️ 风险提示")
+    st.markdown("""
+    - 本工具仅供参考，不构成投资建议
+    - 股市有风险，投资需谨慎
+    - 请结合自身风险承受能力做决策
+    - 历史表现不代表未来收益
+    """)
+    
+    st.markdown("---")
+    
+    st.markdown("### 📊 数据来源")
+    st.markdown("""
+    - **股价数据**: Yahoo Finance
+    - **技术指标**: 实时计算
+    - **AI分析**: 基于量化模型
+    - **更新频率**: 实时
+    """)
+
+# 页脚
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #6b7280; padding: 2rem;'>
+    <p><strong>🤖 QuantGPT v2.0</strong> - AI驱动的量化交易助手</p>
+    <p>由专业量化团队开发 | 24/7 为您的投资决策提供智能支持</p>
+    <p><small>⚠️ 投资有风险，本工具仅供参考，不构成投资建议</small></p>
+</div>
 """, unsafe_allow_html=True)
