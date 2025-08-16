@@ -14,8 +14,8 @@ warnings.filterwarnings('ignore')
 
 # 专业交易界面配置
 st.set_page_config(
-    page_title="QuantGPT Pro - Professional Trading Terminal",
-    page_icon="📈",
+    page_title="QuantGPT Pro - US Stock Trading Terminal",
+    page_icon="🇺🇸",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -242,6 +242,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 # 扩展的技术指标计算器
 class AdvancedTechnicalIndicators:
     """高级技术指标计算器"""
@@ -398,7 +399,8 @@ class AdvancedTechnicalIndicators:
         tr = pd.DataFrame({'tr1': tr1, 'tr2': tr2, 'tr3': tr3}).max(axis=1)
         atr = tr.rolling(window).mean()
         return atr.iloc[-1] if not atr.empty else None
-    # 扩展基本面分析引擎
+
+# 扩展基本面分析引擎
 class ComprehensiveFundamentalAnalysis:
     """全面基本面分析"""
     
@@ -420,7 +422,7 @@ class ComprehensiveFundamentalAnalysis:
                 "company_name": info.get("longName", symbol),
                 "sector": info.get("sector", "Unknown"),
                 "industry": info.get("industry", "Unknown"),
-                "country": info.get("country", "Unknown"),
+                "country": info.get("country", "US"),
                 "website": info.get("website", ""),
                 "business_summary": info.get("longBusinessSummary", "")[:500] + "..." if info.get("longBusinessSummary") else "",
                 
@@ -560,48 +562,48 @@ class ComprehensiveFundamentalAnalysis:
         
         return scores
 
-# 多语言命令解析器
-class MultilingualCommandParser:
-    """多语言命令解析器"""
+# 美股专用命令解析器
+class USStockCommandParser:
+    """美股专用命令解析器"""
     
     def __init__(self):
         self.patterns = {
             'analyze': [
                 # 英文
-                r'analyze\s*([A-Z0-9\.]{1,15})',
-                r'analyse\s*([A-Z0-9\.]{1,15})',
-                r'check\s*([A-Z0-9\.]{1,15})',
-                r'look\s*at\s*([A-Z0-9\.]{1,15})',
-                r'tell\s*me\s*about\s*([A-Z0-9\.]{1,15})',
-                r'show\s*me\s*([A-Z0-9\.]{1,15})',
-                r'([A-Z0-9\.]{1,15})\s*analysis',
+                r'analyze\s*([A-Z][A-Z0-9]{0,9})',
+                r'analyse\s*([A-Z][A-Z0-9]{0,9})',
+                r'check\s*([A-Z][A-Z0-9]{0,9})',
+                r'look\s*at\s*([A-Z][A-Z0-9]{0,9})',
+                r'tell\s*me\s*about\s*([A-Z][A-Z0-9]{0,9})',
+                r'show\s*me\s*([A-Z][A-Z0-9]{0,9})',
+                r'([A-Z][A-Z0-9]{0,9})\s*analysis',
                 # 中文
-                r'分析\s*([A-Z0-9\.]{1,15})',
-                r'查看\s*([A-Z0-9\.]{1,15})',
-                r'看看\s*([A-Z0-9\.]{1,15})',
-                r'([A-Z0-9\.]{1,15})\s*怎么样',
-                r'([A-Z0-9\.]{1,15})\s*分析',
-                r'帮我分析\s*([A-Z0-9\.]{1,15})',
+                r'分析\s*([A-Z][A-Z0-9]{0,9})',
+                r'查看\s*([A-Z][A-Z0-9]{0,9})',
+                r'看看\s*([A-Z][A-Z0-9]{0,9})',
+                r'([A-Z][A-Z0-9]{0,9})\s*怎么样',
+                r'([A-Z][A-Z0-9]{0,9})\s*分析',
+                r'帮我分析\s*([A-Z][A-Z0-9]{0,9})',
             ],
             'compare': [
                 # 英文
-                r'compare\s*([A-Z0-9\.]{1,15})\s*(and|vs|versus|with)\s*([A-Z0-9\.]{1,15})',
-                r'([A-Z0-9\.]{1,15})\s*vs\s*([A-Z0-9\.]{1,15})',
-                r'([A-Z0-9\.]{1,15})\s*versus\s*([A-Z0-9\.]{1,15})',
+                r'compare\s*([A-Z][A-Z0-9]{0,9})\s*(and|vs|versus|with)\s*([A-Z][A-Z0-9]{0,9})',
+                r'([A-Z][A-Z0-9]{0,9})\s*vs\s*([A-Z][A-Z0-9]{0,9})',
+                r'([A-Z][A-Z0-9]{0,9})\s*versus\s*([A-Z][A-Z0-9]{0,9})',
                 # 中文
-                r'比较\s*([A-Z0-9\.]{1,15})\s*(和|与)\s*([A-Z0-9\.]{1,15})',
-                r'([A-Z0-9\.]{1,15})\s*对比\s*([A-Z0-9\.]{1,15})',
-                r'对比\s*([A-Z0-9\.]{1,15})\s*(和|与)\s*([A-Z0-9\.]{1,15})',
+                r'比较\s*([A-Z][A-Z0-9]{0,9})\s*(和|与)\s*([A-Z][A-Z0-9]{0,9})',
+                r'([A-Z][A-Z0-9]{0,9})\s*对比\s*([A-Z][A-Z0-9]{0,9})',
+                r'对比\s*([A-Z][A-Z0-9]{0,9})\s*(和|与)\s*([A-Z][A-Z0-9]{0,9})',
             ],
             'backtest': [
                 # 英文
-                r'backtest\s*([A-Z0-9\.]{1,15})\s*(.*?)strategy',
-                r'test\s*([A-Z0-9\.]{1,15})\s*strategy',
-                r'backtest\s*([A-Z0-9\.]{1,15})',
+                r'backtest\s*([A-Z][A-Z0-9]{0,9})\s*(.*?)strategy',
+                r'test\s*([A-Z][A-Z0-9]{0,9})\s*strategy',
+                r'backtest\s*([A-Z][A-Z0-9]{0,9})',
                 # 中文
-                r'回测\s*([A-Z0-9\.]{1,15})\s*(.*?)策略',
-                r'测试\s*([A-Z0-9\.]{1,15})\s*策略',
-                r'回测\s*([A-Z0-9\.]{1,15})',
+                r'回测\s*([A-Z][A-Z0-9]{0,9})\s*(.*?)策略',
+                r'测试\s*([A-Z][A-Z0-9]{0,9})\s*策略',
+                r'回测\s*([A-Z][A-Z0-9]{0,9})',
             ],
             'screen': [
                 # 英文
@@ -619,18 +621,21 @@ class MultilingualCommandParser:
         }
     
     def parse_command(self, text: str) -> Dict:
-        """解析多语言命令"""
+        """解析美股命令"""
         text = text.upper().strip()
         
         # 分析命令
         for pattern in self.patterns['analyze']:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                return {
-                    'action': 'analyze',
-                    'symbol': match.group(1),
-                    'confidence': 0.9
-                }
+                symbol = match.group(1).upper()
+                # 验证是否为有效美股代码格式
+                if self._is_valid_us_stock_symbol(symbol):
+                    return {
+                        'action': 'analyze',
+                        'symbol': symbol,
+                        'confidence': 0.9
+                    }
         
         # 比较命令
         for pattern in self.patterns['compare']:
@@ -638,34 +643,40 @@ class MultilingualCommandParser:
             if match:
                 groups = match.groups()
                 if len(groups) >= 3:
-                    return {
-                        'action': 'compare',
-                        'symbols': [groups[0], groups[2]],
-                        'confidence': 0.9
-                    }
+                    symbol1, symbol2 = groups[0].upper(), groups[2].upper()
+                    if self._is_valid_us_stock_symbol(symbol1) and self._is_valid_us_stock_symbol(symbol2):
+                        return {
+                            'action': 'compare',
+                            'symbols': [symbol1, symbol2],
+                            'confidence': 0.9
+                        }
                 elif len(groups) >= 2:
-                    return {
-                        'action': 'compare',
-                        'symbols': [groups[0], groups[1]],
-                        'confidence': 0.9
-                    }
+                    symbol1, symbol2 = groups[0].upper(), groups[1].upper()
+                    if self._is_valid_us_stock_symbol(symbol1) and self._is_valid_us_stock_symbol(symbol2):
+                        return {
+                            'action': 'compare',
+                            'symbols': [symbol1, symbol2],
+                            'confidence': 0.9
+                        }
         
         # 回测命令
         for pattern in self.patterns['backtest']:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                strategy = 'sma_crossover'
-                if any(x in text.upper() for x in ['RSI', 'rsi']):
-                    strategy = 'rsi'
-                elif any(x in text.upper() for x in ['MACD', 'macd']):
-                    strategy = 'macd'
-                
-                return {
-                    'action': 'backtest',
-                    'symbol': match.group(1),
-                    'strategy': strategy,
-                    'confidence': 0.8
-                }
+                symbol = match.group(1).upper()
+                if self._is_valid_us_stock_symbol(symbol):
+                    strategy = 'sma_crossover'
+                    if any(x in text.upper() for x in ['RSI', 'rsi']):
+                        strategy = 'rsi'
+                    elif any(x in text.upper() for x in ['MACD', 'macd']):
+                        strategy = 'macd'
+                    
+                    return {
+                        'action': 'backtest',
+                        'symbol': symbol,
+                        'strategy': strategy,
+                        'confidence': 0.8
+                    }
         
         # 筛选命令
         for pattern in self.patterns['screen']:
@@ -707,85 +718,68 @@ class MultilingualCommandParser:
                         }
         
         return {'action': 'unknown', 'confidence': 0.0}
+    
+    def _is_valid_us_stock_symbol(self, symbol: str) -> bool:
+        """验证是否为有效的美股代码格式"""
+        if not symbol or len(symbol) < 1 or len(symbol) > 10:
+            return False
+        
+        # 美股代码通常是1-10个字母，可能包含少量数字
+        # 第一个字符必须是字母
+        if not symbol[0].isalpha():
+            return False
+        
+        # 其余字符可以是字母或数字
+        for char in symbol[1:]:
+            if not (char.isalpha() or char.isdigit()):
+                return False
+        
+        return True
 
-# 全球股票数据管理器
-class GlobalStockDataManager:
-    """全球股票数据管理器"""
+# 美股数据管理器
+class USStockDataManager:
+    """美股数据管理器"""
     
     def __init__(self):
         self.cache = {}
-        # 支持的交易所后缀
-        self.exchange_suffixes = {
-            'US': '',  # 美股
-            'HK': '.HK',  # 港股
-            'CN': '.SS',  # 沪市
-            'SZ': '.SZ',  # 深市
-            'JP': '.T',   # 日股
-            'UK': '.L',   # 英股
-            'DE': '.DE',  # 德股
-            'FR': '.PA',  # 法股
-            'CA': '.TO',  # 加股
-            'AU': '.AX',  # 澳股
-        }
-    
-    def smart_symbol_detection(self, symbol: str) -> str:
-        """智能股票代码检测"""
-        symbol = symbol.upper().strip()
-        
-        # 如果已经包含交易所后缀，直接返回
-        if '.' in symbol:
-            return symbol
-        
-        # 中国股票代码检测
-        if symbol.isdigit() and len(symbol) == 6:
-            if symbol.startswith(('60', '68')):
-                return f"{symbol}.SS"  # 沪市
-            elif symbol.startswith(('00', '30')):
-                return f"{symbol}.SZ"  # 深市
-        
-        # 港股代码检测
-        if symbol.isdigit() and len(symbol) in [4, 5]:
-            return f"{symbol}.HK"
-        
-        # 默认认为是美股
-        return symbol
     
     def get_stock_data(self, symbol: str, period: str = "1y") -> pd.DataFrame:
-        """获取全球股票数据"""
-        # 智能检测股票代码
-        full_symbol = self.smart_symbol_detection(symbol)
+        """获取美股数据"""
+        # 确保是大写
+        symbol = symbol.upper().strip()
         
-        cache_key = f"{full_symbol}_{period}"
+        cache_key = f"{symbol}_{period}"
         if cache_key in self.cache:
             return self.cache[cache_key]
         
         try:
-            ticker = yf.Ticker(full_symbol)
+            ticker = yf.Ticker(symbol)
             data = ticker.history(period=period)
             
             if not data.empty:
                 self.cache[cache_key] = data
                 return data
         except Exception as e:
-            print(f"获取 {full_symbol} 数据失败: {e}")
+            print(f"获取 {symbol} 数据失败: {e}")
         
         return pd.DataFrame()
-    # 专业量化分析引擎
-class ProfessionalQuantEngine:
-    """专业量化分析引擎"""
+
+# 专业美股量化分析引擎
+class USStockQuantEngine:
+    """专业美股量化分析引擎"""
     
     def __init__(self):
-        self.data_manager = GlobalStockDataManager()
+        self.data_manager = USStockDataManager()
         self.technical_analyzer = AdvancedTechnicalIndicators()
         self.fundamental_analyzer = ComprehensiveFundamentalAnalysis()
-        self.command_parser = MultilingualCommandParser()
+        self.command_parser = USStockCommandParser()
     
     def comprehensive_analysis(self, symbol: str, period: str = "1y") -> Dict:
         """全面分析"""
         # 获取数据
         data = self.data_manager.get_stock_data(symbol, period)
         if data.empty:
-            return {"error": f"无法获取 {symbol} 的数据"}
+            return {"error": f"无法获取 {symbol} 的数据，请检查股票代码是否正确"}
         
         # 技术分析
         technical_indicators = self.technical_analyzer.calculate_all_indicators(data)
@@ -802,7 +796,7 @@ class ProfessionalQuantEngine:
                 "name": fundamental_data.get("company_name", symbol),
                 "sector": fundamental_data.get("sector", "Unknown"),
                 "industry": fundamental_data.get("industry", "Unknown"),
-                "country": fundamental_data.get("country", "Unknown")
+                "country": "United States"
             },
             "technical_analysis": technical_indicators,
             "fundamental_analysis": fundamental_data,
@@ -925,7 +919,7 @@ class ProfessionalQuantEngine:
                 "error": "抱歉，我没有理解您的指令",
                 "examples": [
                     "分析 AAPL / analyze AAPL",
-                    "比较 AAPL 和 GOOGL / compare AAPL vs GOOGL",
+                    "比较 AAPL 和 GOOGL / compare AAPL vs GOOGL", 
                     "回测 TSLA RSI策略 / backtest TSLA RSI strategy",
                     "筛选 PE < 20 / screen PE < 20",
                     "找高分红股票 / find dividend stocks"
@@ -1054,19 +1048,49 @@ class ProfessionalQuantEngine:
     
     def screen_stocks(self, criteria: Dict) -> Dict:
         """股票筛选"""
-        # 默认股票池（可扩展）
-        default_symbols = [
-            # 美股大盘
-            "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX",
-            "JPM", "JNJ", "UNH", "PG", "HD", "BAC", "XOM", "CVX", "PFE", "KO",
-            # 中概股
-            "BABA", "JD", "PDD", "BIDU", "NIO", "XPEV", "LI", "DIDI",
-            # 港股（示例）
-            "0700.HK", "0941.HK", "1299.HK", "2318.HK"
+        # 扩展的美股池
+        us_stock_pool = [
+            # FAANG + 科技巨头
+            "AAPL", "GOOGL", "GOOG", "MSFT", "AMZN", "META", "TSLA", "NVDA", "NFLX", "ADBE",
+            
+            # 大盘蓝筹
+            "BRK-B", "UNH", "JNJ", "V", "JPM", "PG", "HD", "MA", "BAC", "ABBV",
+            "PFE", "KO", "PEP", "MRK", "COST", "WMT", "DIS", "VZ", "CMCSA", "CRM",
+            
+            # 金融
+            "WFC", "GS", "MS", "C", "AXP", "BLK", "SPGI", "USB", "TFC", "PNC",
+            
+            # 工业
+            "BA", "CAT", "HON", "UPS", "GE", "LMT", "MMM", "RTX", "DE", "FDX",
+            
+            # 医疗健康
+            "UNH", "JNJ", "PFE", "ABBV", "MRK", "TMO", "ABT", "LLY", "MDT", "BMY",
+            
+            # 消费品
+            "PG", "KO", "PEP", "WMT", "HD", "MCD", "NKE", "SBUX", "TGT", "LOW",
+            
+            # 能源
+            "XOM", "CVX", "COP", "EOG", "SLB", "KMI", "OXY", "VLO", "PSX", "MPC",
+            
+            # 房地产
+            "AMT", "PLD", "CCI", "EQIX", "PSA", "WELL", "EXR", "AVB", "EQR", "SPG",
+            
+            # 公用事业
+            "NEE", "DUK", "SO", "D", "AEP", "EXC", "XEL", "SRE", "PEG", "ES",
+            
+            # 通信
+            "T", "VZ", "TMUS", "CHTR", "CMCSA", "S", "DISH", "LUMN", "SIRI", "MSGS",
+            
+            # 热门股票
+            "AMD", "INTC", "CRM", "ORCL", "IBM", "QCOM", "TXN", "NOW", "INTU", "MU",
+            "PYPL", "SQ", "ROKU", "ZM", "DOCU", "SNAP", "TWTR", "PINS", "UBER", "LYFT",
+            
+            # ETF
+            "SPY", "QQQ", "IWM", "VTI", "VOO", "VEA", "VWO", "GLD", "SLV", "TLT"
         ]
         
         results = []
-        for symbol in default_symbols:
+        for symbol in us_stock_pool:
             try:
                 analysis = self.comprehensive_analysis(symbol)
                 if "error" not in analysis:
@@ -1078,11 +1102,23 @@ class ProfessionalQuantEngine:
                             "price": analysis["technical_analysis"].get("Current_Price"),
                             "pe_ratio": analysis["fundamental_analysis"].get("pe_ratio"),
                             "roe": analysis["fundamental_analysis"].get("roe"),
+                            "dividend_yield": analysis["fundamental_analysis"].get("dividend_yield"),
+                            "market_cap": analysis["fundamental_analysis"].get("market_cap"),
                             "ai_score": analysis["ai_insights"]["confidence"],
                             "recommendation": analysis["ai_insights"]["recommendation"]
                         })
             except:
                 continue
+        
+        # 排序结果
+        if criteria.get('type') == 'dividend':
+            results = sorted(results, key=lambda x: x.get('dividend_yield', 0) or 0, reverse=True)
+        elif criteria.get('type') == 'growth':
+            results = sorted(results, key=lambda x: x.get('ai_score', 0), reverse=True)
+        elif criteria.get('type') == 'value':
+            results = sorted(results, key=lambda x: x.get('pe_ratio', 999) or 999)
+        else:
+            results = sorted(results, key=lambda x: x.get('ai_score', 0), reverse=True)
         
         return {
             "criteria": criteria,
@@ -1100,20 +1136,44 @@ class ProfessionalQuantEngine:
             return dividend_yield and dividend_yield > 0.03
         elif criteria.get('type') == 'growth':
             revenue_growth = fundamental.get('revenue_growth', 0)
-            return revenue_growth and revenue_growth > 0.15
+            ai_score = analysis.get("ai_insights", {}).get("confidence", 0)
+            return (revenue_growth and revenue_growth > 0.15) or ai_score > 0.7
         elif criteria.get('type') == 'value':
             pe = fundamental.get('pe_ratio', 0)
-            return pe and pe < 20
+            return pe and pe < 20 and pe > 0
         elif criteria.get('type') == 'custom':
             # 自定义条件筛选逻辑
-            pass
+            indicator = criteria.get('indicator', '').upper()
+            operator = criteria.get('operator', '>')
+            value = criteria.get('value', 0)
+            
+            if indicator in ['PE', 'P/E']:
+                pe = fundamental.get('pe_ratio', 0)
+                if pe:
+                    if operator == '<': return pe < value
+                    elif operator == '>': return pe > value
+                    elif operator == '=': return abs(pe - value) < 0.1
+            elif indicator in ['PB', 'P/B']:
+                pb = fundamental.get('pb_ratio', 0)
+                if pb:
+                    if operator == '<': return pb < value
+                    elif operator == '>': return pb > value
+                    elif operator == '=': return abs(pb - value) < 0.1
+            elif indicator == 'ROE':
+                roe = fundamental.get('roe', 0)
+                if roe:
+                    roe_percent = roe * 100
+                    if operator == '<': return roe_percent < value
+                    elif operator == '>': return roe_percent > value
+                    elif operator == '=': return abs(roe_percent - value) < 1
         
         return True
-    # 初始化系统
+
+# 初始化系统
 @st.cache_resource
-def initialize_quant_engine():
-    """初始化量化引擎"""
-    return ProfessionalQuantEngine()
+def initialize_us_quant_engine():
+    """初始化美股量化引擎"""
+    return USStockQuantEngine()
 
 def generate_professional_response(result: Dict) -> Dict:
     """生成专业回复"""
@@ -1125,16 +1185,18 @@ def generate_professional_response(result: Dict) -> Dict:
 
 {result['error']}
 
-### 📚 支持的指令格式:
+### 📚 支持的美股指令格式:
 - **股票分析**: `分析 AAPL` / `analyze AAPL`
 - **股票对比**: `比较 AAPL 和 GOOGL` / `compare AAPL vs GOOGL`
 - **策略回测**: `回测 TSLA RSI策略` / `backtest TSLA RSI strategy`
 - **股票筛选**: `筛选 PE < 20` / `screen PE < 20`
 
-### 🌍 支持的市场:
-- 🇺🇸 美股: `AAPL`, `GOOGL`, `TSLA`
-- 🇭🇰 港股: `0700.HK`, `0941.HK`
-- 🇨🇳 A股: `000001.SZ`, `600036.SS`
+### 🇺🇸 支持的美股代码示例:
+- **科技股**: AAPL, GOOGL, MSFT, AMZN, TSLA, META, NVDA
+- **金融股**: JPM, BAC, WFC, GS, V, MA
+- **消费股**: KO, PEP, WMT, HD, MCD, NKE
+- **医疗股**: JNJ, PFE, UNH, ABBV, MRK
+- **ETF**: SPY, QQQ, IWM, VTI, VOO
 """
         return response
     
@@ -1151,7 +1213,7 @@ def generate_professional_response(result: Dict) -> Dict:
 
 ### 🏢 公司概况
 - **行业**: {company_info['sector']} / {company_info['industry']}
-- **地区**: {company_info['country']}
+- **市场**: 🇺🇸 美国股票市场
 - **当前价格**: ${technical.get('Current_Price', 0):.2f}
 - **日涨跌**: {technical.get('Price_Change', 0):+.2f}%
 
@@ -1194,6 +1256,7 @@ def generate_professional_response(result: Dict) -> Dict:
         if fundamental.get('debt_to_equity'): fund_data.append(["债务股权比", f"{fundamental['debt_to_equity']:.2f}"])
         if fundamental.get('current_ratio'): fund_data.append(["流动比率", f"{fundamental['current_ratio']:.2f}"])
         if fundamental.get('dividend_yield'): fund_data.append(["股息率", f"{fundamental['dividend_yield']*100:.2f}%"])
+        if fundamental.get('market_cap'): fund_data.append(["市值", f"${fundamental['market_cap']/1e9:.1f}B"])
         
         if fund_data:
             fund_df = pd.DataFrame(fund_data, columns=["基本面指标", "数值"])
@@ -1282,7 +1345,7 @@ def generate_professional_response(result: Dict) -> Dict:
         analyses = result["analyses"]
         
         response["content"] = f"""
-## ⚖️ {' vs '.join(symbols)} 对比分析
+## ⚖️ {' vs '.join(symbols)} 美股对比分析
 
 ### 📊 对比摘要
 {result['comparison_summary']}
@@ -1295,10 +1358,12 @@ def generate_professional_response(result: Dict) -> Dict:
         for symbol, analysis in analyses.items():
             comparison_data.append({
                 "股票代码": symbol,
-                "公司名称": analysis["company_info"]["name"],
+                "公司名称": analysis["company_info"]["name"][:20],
+                "行业": analysis["company_info"]["sector"][:15],
                 "当前价格": f"${analysis['technical_analysis'].get('Current_Price', 0):.2f}",
-                "PE比率": analysis['fundamental_analysis'].get('pe_ratio', 'N/A'),
-                "ROE": f"{(analysis['fundamental_analysis'].get('roe', 0) or 0)*100:.1f}%",
+                "PE比率": f"{analysis['fundamental_analysis'].get('pe_ratio', 0):.1f}" if analysis['fundamental_analysis'].get('pe_ratio') else 'N/A',
+                "ROE": f"{(analysis['fundamental_analysis'].get('roe', 0) or 0)*100:.1f}%" if analysis['fundamental_analysis'].get('roe') else 'N/A',
+                "市值": f"${(analysis['fundamental_analysis'].get('market_cap', 0) or 0)/1e9:.1f}B" if analysis['fundamental_analysis'].get('market_cap') else 'N/A',
                 "AI评分": f"{analysis['ai_insights']['confidence']:.1%}",
                 "推荐": analysis['ai_insights']['recommendation']
             })
@@ -1340,59 +1405,68 @@ def generate_professional_response(result: Dict) -> Dict:
         count = result['count']
         
         response["content"] = f"""
-## 🔍 专业股票筛选报告
+## 🔍 美股专业筛选报告
 
 ### 📊 筛选条件
 """
         
         if criteria.get('type') == 'dividend':
-            response["content"] += "- **筛选类型**: 高分红股票 (股息率 > 3%)"
+            response["content"] += "- **筛选类型**: 高分红美股 (股息率 > 3%)"
         elif criteria.get('type') == 'growth':
-            response["content"] += "- **筛选类型**: 成长股票 (营收增长 > 15%)"
+            response["content"] += "- **筛选类型**: 成长型美股 (高AI评分或营收增长 > 15%)"
         elif criteria.get('type') == 'value':
-            response["content"] += "- **筛选类型**: 价值股票 (PE < 20)"
+            response["content"] += "- **筛选类型**: 价值型美股 (PE < 20)"
+        elif criteria.get('type') == 'custom':
+            indicator = criteria.get('indicator', '')
+            operator = criteria.get('operator', '')
+            value = criteria.get('value', 0)
+            response["content"] += f"- **筛选类型**: 自定义条件 ({indicator} {operator} {value})"
         
         response["content"] += f"""
 
-### 📋 筛选结果 (共发现 {count} 只股票)
+### 📋 筛选结果 (共发现 {count} 只美股)
 """
         
         if results:
             # 创建结果表格
             results_data = []
-            for stock in results[:15]:  # 显示前15只
+            for i, stock in enumerate(results[:20]):  # 显示前20只
                 results_data.append({
+                    "排名": i + 1,
                     "代码": stock['symbol'],
-                    "公司名称": stock.get('name', stock['symbol'])[:20],
-                    "行业": stock.get('sector', 'N/A'),
+                    "公司名称": stock.get('name', stock['symbol'])[:25],
+                    "行业": stock.get('sector', 'N/A')[:15],
                     "价格": f"${stock.get('price', 0):.2f}" if stock.get('price') else 'N/A',
                     "PE": f"{stock.get('pe_ratio', 0):.1f}" if stock.get('pe_ratio') else 'N/A',
                     "ROE": f"{(stock.get('roe', 0) or 0)*100:.1f}%" if stock.get('roe') else 'N/A',
+                    "股息率": f"{(stock.get('dividend_yield', 0) or 0)*100:.2f}%" if stock.get('dividend_yield') else 'N/A',
+                    "市值": f"${(stock.get('market_cap', 0) or 0)/1e9:.1f}B" if stock.get('market_cap') else 'N/A',
                     "AI评分": f"{(stock.get('ai_score', 0) or 0):.1%}",
-                    "推荐": stock.get('recommendation', 'N/A')
+                    "推荐": stock.get('recommendation', 'N/A')[:8]
                 })
             
             results_df = pd.DataFrame(results_data)
             response["table_data"] = results_df
             
-            if count > 15:
-                response["content"] += f"\n*显示前15只股票，总共筛选出{count}只符合条件的股票*"
+            if count > 20:
+                response["content"] += f"\n*显示前20只股票，总共筛选出{count}只符合条件的美股*"
         else:
-            response["content"] += "\n❌ 未找到符合条件的股票，建议调整筛选条件"
+            response["content"] += "\n❌ 未找到符合条件的美股，建议调整筛选条件"
     
     return response
+
 # 初始化会话状态
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "quant_engine" not in st.session_state:
-    st.session_state.quant_engine = initialize_quant_engine()
+if "us_quant_engine" not in st.session_state:
+    st.session_state.us_quant_engine = initialize_us_quant_engine()
 
 # 专业头部
 st.markdown("""
 <div class="pro-header">
-    <h1 class="terminal-title">QUANTGPT PRO</h1>
-    <p class="terminal-subtitle">Professional AI Quantitative Trading Terminal | 专业AI量化交易终端</p>
+    <h1 class="terminal-title">🇺🇸 QUANTGPT PRO</h1>
+    <p class="terminal-subtitle">Professional US Stock AI Trading Terminal | 专业美股AI交易终端</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1401,7 +1475,7 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown('<div class="status-indicator">🟢 SYSTEM ONLINE</div>', unsafe_allow_html=True)
 with col2:
-    st.markdown('<div class="status-indicator">🌍 GLOBAL MARKETS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="status-indicator">🇺🇸 US MARKETS</div>', unsafe_allow_html=True)
 with col3:
     st.markdown('<div class="status-indicator">🤖 AI ENGINE ACTIVE</div>', unsafe_allow_html=True)
 with col4:
@@ -1409,14 +1483,7 @@ with col4:
 
 # 侧边栏专业配置
 with st.sidebar:
-    st.markdown("### 🎛️ 交易终端设置")
-    
-    # 市场选择
-    market_selection = st.selectbox(
-        "🌍 目标市场",
-        ["全球市场", "美股", "港股", "A股", "日股", "欧股"],
-        index=0
-    )
+    st.markdown("### 🎛️ 美股交易终端设置")
     
     # 分析周期
     analysis_period = st.selectbox(
@@ -1432,20 +1499,27 @@ with st.sidebar:
         index=1
     )
     
+    # 投资风格
+    investment_style = st.selectbox(
+        "💎 投资风格",
+        ["价值投资", "成长投资", "动量投资", "分红投资"],
+        index=0
+    )
+    
     st.markdown("---")
     
-    # 实时市场数据
-    st.markdown("### 📈 实时市场概览")
+    # 实时美股指数
+    st.markdown("### 📈 美股指数实时概览")
     
-    # 主要指数
-    major_indices = {
+    # 主要美股指数
+    us_indices = {
         "S&P 500": "^GSPC",
-        "NASDAQ": "^IXIC",
-        "恒生指数": "^HSI",
-        "上证指数": "000001.SS"
+        "NASDAQ": "^IXIC", 
+        "Dow Jones": "^DJI",
+        "Russell 2000": "^RUT"
     }
     
-    for name, symbol in major_indices.items():
+    for name, symbol in us_indices.items():
         try:
             ticker = yf.Ticker(symbol)
             hist = ticker.history(period="2d")
@@ -1471,21 +1545,21 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # 专业功能指南
-    st.markdown("### 📚 专业功能指南")
+    # 美股功能指南
+    st.markdown("### 📚 美股功能指南")
     
     with st.expander("🔍 股票分析", expanded=True):
         st.markdown("""
         **支持格式:**
         - `分析 AAPL` / `analyze AAPL`
-        - `查看 0700.HK` (港股)
-        - `看看 000001.SZ` (A股)
+        - `查看 GOOGL` / `check GOOGL`
+        - `看看 TSLA` / `look at TSLA`
         
-        **支持市场:**
-        - 🇺🇸 美股 (AAPL, GOOGL)
-        - 🇭🇰 港股 (0700.HK, 0941.HK)
-        - 🇨🇳 A股 (000001.SZ, 600036.SS)
-        - 🇯🇵 日股 (7203.T)
+        **热门美股:**
+        - 🍎 科技: AAPL, GOOGL, MSFT, AMZN, TSLA
+        - 💰 金融: JPM, BAC, V, MA, BRK-B
+        - 🛍️ 消费: WMT, HD, KO, PEP, MCD
+        - 💊 医疗: JNJ, PFE, UNH, ABBV
         """)
     
     with st.expander("📊 技术指标", expanded=False):
@@ -1507,54 +1581,74 @@ with st.sidebar:
         - 成长: 营收增长, 盈利增长
         - 股息: 股息率, 分红比率
         """)
+    
+    with st.expander("🔬 策略回测", expanded=False):
+        st.markdown("""
+        **支持策略:**
+        - SMA交叉策略
+        - RSI超买超卖策略
+        - MACD金叉死叉策略
+        
+        **回测指标:**
+        - 总收益率、年化波动率
+        - 夏普比率、最大回撤
+        """)
 
 # 示例命令 (如果没有历史消息)
 if not st.session_state.messages:
-    st.markdown("### 🚀 快速开始")
+    st.markdown("### 🚀 美股快速开始")
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("📊 分析 AAPL", key="ex1", help="美股苹果公司分析"):
+        if st.button("📊 分析 AAPL", key="ex1", help="苹果公司深度分析"):
             st.session_state.messages.append({"role": "user", "content": "分析 AAPL"})
             st.rerun()
     
     with col2:
-        if st.button("🔍 筛选价值股", key="ex2", help="筛选低估值股票"):
+        if st.button("🔍 筛选价值股", key="ex2", help="筛选低估值美股"):
             st.session_state.messages.append({"role": "user", "content": "找价值股票"})
             st.rerun()
     
     with col3:
-        if st.button("⚖️ 对比 AAPL vs GOOGL", key="ex3", help="比较两只龙头股"):
+        if st.button("⚖️ 对比 AAPL vs GOOGL", key="ex3", help="科技巨头对比"):
             st.session_state.messages.append({"role": "user", "content": "比较 AAPL 和 GOOGL"})
             st.rerun()
     
     with col4:
-        if st.button("🔬 回测 TSLA RSI", key="ex4", help="测试RSI策略"):
+        if st.button("🔬 回测 TSLA RSI", key="ex4", help="特斯拉RSI策略"):
             st.session_state.messages.append({"role": "user", "content": "回测 TSLA RSI策略"})
             st.rerun()
     
-    # 高级示例
-    st.markdown("### 🎯 高级示例")
+    # 高级美股示例
+    st.markdown("### 🎯 高级美股分析")
     
     advanced_col1, advanced_col2 = st.columns(2)
     
     with advanced_col1:
-        if st.button("🏭 分析港股腾讯 0700.HK", key="ex5"):
-            st.session_state.messages.append({"role": "user", "content": "分析 0700.HK"})
+        if st.button("💰 分析伯克希尔 BRK-B", key="ex5"):
+            st.session_state.messages.append({"role": "user", "content": "分析 BRK-B"})
             st.rerun()
         
-        if st.button("💎 筛选 PE < 15 的低估股", key="ex6"):
+        if st.button("💎 筛选 PE < 15 的价值股", key="ex6"):
             st.session_state.messages.append({"role": "user", "content": "筛选 PE < 15"})
+            st.rerun()
+        
+        if st.button("🏦 分析摩根大通 JPM", key="ex7"):
+            st.session_state.messages.append({"role": "user", "content": "分析 JPM"})
             st.rerun()
     
     with advanced_col2:
-        if st.button("📈 分析A股平安银行 000001.SZ", key="ex7"):
-            st.session_state.messages.append({"role": "user", "content": "分析 000001.SZ"})
-            st.rerun()
-        
         if st.button("🚀 找高成长科技股", key="ex8"):
             st.session_state.messages.append({"role": "user", "content": "找成长股票"})
+            st.rerun()
+        
+        if st.button("💰 找高分红蓝筹股", key="ex9"):
+            st.session_state.messages.append({"role": "user", "content": "找高分红股票"})
+            st.rerun()
+        
+        if st.button("📈 对比 SPY vs QQQ", key="ex10"):
+            st.session_state.messages.append({"role": "user", "content": "比较 SPY 和 QQQ"})
             st.rerun()
 
 # 显示聊天历史
@@ -1605,12 +1699,12 @@ for message in st.session_state.messages:
             )
 
 # 专业输入区域
-st.markdown("### 💬 专业交易指令终端")
+st.markdown("### 💬 美股交易指令终端")
 
 # 创建输入框
 user_input = st.text_input(
-    "交易指令",
-    placeholder="输入交易指令: 分析 AAPL | analyze GOOGL | 比较 AAPL vs TSLA | 筛选 PE < 20 | 找高分红股票...",
+    "美股交易指令",
+    placeholder="输入美股指令: 分析 AAPL | analyze GOOGL | 比较 AAPL vs TSLA | 筛选 PE < 20 | 找高分红股票...",
     key="user_input",
     label_visibility="collapsed"
 )
@@ -1632,10 +1726,10 @@ if send_button and user_input.strip():
     st.session_state.messages.append({"role": "user", "content": user_input})
     
     # 显示处理状态
-    with st.spinner("🤖 QuantGPT Pro 正在进行专业分析..."):
+    with st.spinner("🤖 QuantGPT Pro 正在进行美股专业分析..."):
         try:
             # 处理命令
-            result = st.session_state.quant_engine.process_command(user_input)
+            result = st.session_state.us_quant_engine.process_command(user_input)
             
             # 生成AI回复
             ai_response = generate_professional_response(result)
@@ -1649,10 +1743,10 @@ if send_button and user_input.strip():
                 "content": f"""
 ## ❌ 系统错误
 
-处理指令时发生错误: {str(e)}
+处理美股指令时发生错误: {str(e)}
 
 ### 🔧 故障排除建议:
-- 检查股票代码格式是否正确
+- 检查美股代码格式是否正确 (如: AAPL, GOOGL, TSLA)
 - 确认网络连接状态
 - 稍后重试或联系技术支持
 
@@ -1670,11 +1764,11 @@ st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748b; padding: 2rem; font-family: "JetBrains Mono", monospace;'>
     <div style='margin-bottom: 1rem;'>
-        <span class="pro-badge">QUANTGPT PRO v3.0</span>
+        <span class="pro-badge">QUANTGPT PRO US v3.0</span>
     </div>
-    <p><strong>🎯 Professional AI Quantitative Trading Terminal</strong></p>
-    <p>⚡ Real-time Global Market Analysis | 🔬 Advanced Technical Indicators | 💎 Comprehensive Fundamental Analysis</p>
-    <p><small>⚠️ Professional trading tool for reference only. Investment involves risks.</small></p>
-    <p><small>🌍 Supports: US 🇺🇸 | HK 🇭🇰 | CN 🇨🇳 | JP 🇯🇵 | EU 🇪🇺 Markets</small></p>
+    <p><strong>🇺🇸 Professional US Stock AI Trading Terminal</strong></p>
+    <p>⚡ Real-time US Market Analysis | 🔬 Advanced Technical Indicators | 💎 Comprehensive Fundamental Analysis</p>
+    <p><small>⚠️ Professional US stock trading tool for reference only. Investment involves risks.</small></p>
+    <p><small>📊 Supports: NYSE, NASDAQ, AMEX | 🕐 Market Hours: 9:30 AM - 4:00 PM ET</small></p>
 </div>
 """, unsafe_allow_html=True)
