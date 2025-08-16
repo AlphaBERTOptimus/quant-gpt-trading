@@ -261,14 +261,178 @@ def get_theme_css(theme="dark"):
 </style>
 """
 
+class CommandParser:
+    """Smart command parser for stock analysis"""
+    
+    @staticmethod
+    def parse_command(text: str) -> Dict:
+        """Parse user command and extract symbols and action"""
+        text = text.upper().strip()
+        
+        # Stock symbol pattern (1-5 letters, optionally followed by numbers)
+        symbol_pattern = r'\b[A-Z]{1,5}(?:\d{0,2})?\b'
+        
+        # Extract all potential symbols
+        potential_symbols = re.findall(symbol_pattern, text)
+        
+        # Filter out common command words
+        command_words = {'ANALYZE', 'ANALYSE', 'CHECK', 'LOOK', 'AT', 'SHOW', 'ME', 'TELL', 
+                        'ABOUT', 'GET', 'DATA', 'FOR', 'COMPARE', 'VS', 'VERSUS', 'AND', 
+                        'WITH', 'AGAINST', 'STOCK', 'STOCKS', 'PRICE', 'CHART', 'INFO',
+                        'INFORMATION', 'DETAILS', 'ANALYSIS', 'REPORT', 'THE', 'OF', 'IS',
+                        'ARE', 'WHAT', 'HOW', 'WHY', 'WHEN', 'WHERE', 'WHICH'}
+        
+        symbols = [s for s in potential_symbols if s not in command_words]
+        
+        # Determine action type
+        if any(word in text for word in ['COMPARE', 'VS', 'VERSUS', 'AGAINST']):
+            action = 'compare'
+        elif any(word in text for word in ['ANALYZE', 'ANALYSE', 'CHECK', 'LOOK', 'SHOW', 'TELL']):
+            action = 'analyze'
+        else:
+            action = 'analyze'  # Default action
+        
+        return {
+            'action': action,
+            'symbols': symbols[:5],  # Limit to 5 symbols max
+            'original_text': text
+        }
+    
+    @staticmethod
+    def validate_symbol(symbol: str) -> bool:
+        """Validate if symbol looks like a valid stock ticker"""
+        if not symbol or len(symbol) < 1 or len(symbol) > 7:
+            return False
+        
+        # Must start with letter
+        if not symbol[0].isalpha():
+            return False
+        
+        # Rest can be letters or numbers
+        return all(c.isalnum() for c in symbol)
+
 class StreamingAnalyzer:
     """Streaming Analysis Engine"""
     
     def __init__(self):
         self.data_cache = {}
+        self.parser = CommandParser()
     
+    def process_command(self, text: str) -> Generator[Dict, None, None]:
+        """Process user command and route to appropriate analysis"""
+        # Parse the command
+        parsed = self.parser.parse_command(text)
+        
+        yield {
+            "type": "status",
+            "content": f"🔍 Processing command: {parsed['original_text']}"
+        }
+        
+        if not parsed['symbols']:
+            yield {
+                "type": "error",
+                "content": "❌ No valid stock symbols found. Please enter symbols like: AAPL, GOOGL, TSLA, NVDA"
+            }
+            return
+        
+        # Validate symbols
+        valid_symbols = []
+        for symbol in parsed['symbols']:
+            if self.parser.validate_symbol(symbol):
+                valid_symbols.append(symbol)
+            else:
+                yield {
+                    "type": "status",
+                    "content": f"⚠️ Skipping invalid symbol: {symbol}"
+                }
+        
+        if not valid_symbols:
+            yield {
+                "type": "error", 
+                "content": "❌ No valid stock symbols found. Examples: AAPL, GOOGL, TSLA, NVDA"
+            }
+            return
+        
+        # Route to appropriate analysis
+        if parsed['action'] == 'compare' and len(valid_symbols) >= 2:
+            yield from self.stream_comparison(valid_symbols[:2])
+        else:
+            # Single symbol analysis
+            yield from self.stream_analysis(valid_symbols[0])
+    
+    def stream_comparison(self, symbols: List[str]) -> Generator[Dict, None, None]:
+        """Stream comparison analysis for two symbols"""
+        yield {
+            "type": "status",
+            "content": f"⚖️ Comparing {symbols[0]} vs {symbols[1]}..."
+        }
+        
+        analyses = {}
+        
+        # Analyze each symbol
+        for symbol in symbols:
+            yield {
+                "type": "status",
+                "content": f"📊 Analyzing {symbol}..."
+            }
+            
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period="1y")
+                info = ticker.info
+                
+                if data.empty:
+                    yield {
+                        "type": "error",
+                        "content": f"❌ No data found for {symbol}"
+                    }
+                    continue
+                
+                # Quick analysis for comparison
+                technical_data = self._calculate_technical_indicators(data)
+                fundamental_data = self._extract_fundamentals(info)
+                
+                analyses[symbol] = {
+                    'data': data,
+                    'info': info,
+                    'technical': technical_data,
+                    'fundamental': fundamental_data,
+                    'price': data['Close'].iloc[-1],
+                    'change': ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
+                }
+                
+            except Exception as e:
+                yield {
+                    "type": "error",
+                    "content": f"❌ Failed to analyze {symbol}: {str(e)}"
+                }
+                continue
+        
+        if len(analyses) >= 2:
+            yield {
+                "type": "comparison",
+                "content": {
+                    'symbols': symbols,
+                    'analyses': analyses
+                }
+            }
+        else:
+            yield {
+                "type": "error",
+                "content": "❌ Need at least 2 valid symbols for comparison"
+            }
+        """Stream analysis results progressively"""
+        
     def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
         """Stream analysis results progressively"""
+        
+        # Validate symbol first
+        if not self.parser.validate_symbol(symbol):
+            yield {
+                "type": "error",
+                "content": f"❌ Invalid symbol format: {symbol}"
+            }
+            return
         
         # Step 1: Initial validation
         yield {
@@ -291,7 +455,7 @@ class StreamingAnalyzer:
             if data.empty:
                 yield {
                     "type": "error",
-                    "content": f"❌ No data found for symbol: {symbol.upper()}"
+                    "content": f"❌ No data found for symbol: {symbol.upper()}. Please check if the symbol is correct."
                 }
                 return
             
@@ -370,7 +534,7 @@ class StreamingAnalyzer:
         except Exception as e:
             yield {
                 "type": "error",
-                "content": f"❌ Analysis failed: {str(e)}"
+                "content": f"❌ Analysis failed for {symbol.upper()}: {str(e)}"
             }
     
     def _calculate_technical_indicators(self, data: pd.DataFrame) -> Dict:
@@ -689,6 +853,10 @@ for message in st.session_state.messages:
         if "fundamental_table" in message:
             st.markdown("#### 💰 Fundamental Metrics")
             st.dataframe(message["fundamental_table"], use_container_width=True, hide_index=True)
+            
+        if "comparison_table" in message:
+            st.markdown("#### ⚖️ Comparison Results")
+            st.dataframe(message["comparison_table"], use_container_width=True, hide_index=True)
 
 # Input section
 st.markdown("### 💬 Terminal Input")
@@ -698,7 +866,7 @@ col1, col2, col3 = st.columns([6, 1, 1])
 with col1:
     user_input = st.text_input(
         "Command",
-        placeholder="Enter stock symbol (e.g., AAPL, GOOGL, TSLA, NVDA...)",
+        placeholder="Enter commands like: AAPL, GOOGL, compare NVDA and TSLA, check MSFT...",
         key="terminal_input",
         label_visibility="collapsed"
     )
@@ -715,10 +883,11 @@ with col3:
 
 # Process input with streaming
 if execute_btn and user_input.strip():
-    symbol = user_input.strip().upper()
+    # Parse command to extract symbols and action
+    parsed_command = st.session_state.analyzer.parser.parse_command(user_input.strip())
     
     # Add user message
-    st.session_state.messages.append({"role": "user", "content": symbol})
+    st.session_state.messages.append({"role": "user", "content": user_input.strip()})
     
     # Create streaming container
     streaming_container = st.empty()
@@ -726,9 +895,10 @@ if execute_btn and user_input.strip():
     chart_data = None
     technical_table = None
     fundamental_table = None
+    comparison_table = None
     
     # Stream the analysis
-    for update in st.session_state.analyzer.stream_analysis(symbol):
+    for update in st.session_state.analyzer.process_command(user_input.strip()):
         if update["type"] == "status":
             streaming_container.markdown(f"""
             <div class="streaming-message">
@@ -800,6 +970,34 @@ if execute_btn and user_input.strip():
                     emoji = "🟢" if signal["type"] == "bullish" else "🔴"
                     result_content += f"- {emoji} {signal['message']}\n"
                 result_content += "\n"
+        
+        elif update["type"] == "comparison":
+            comp = update["content"]
+            symbols = comp["symbols"]
+            analyses = comp["analyses"]
+            
+            result_content = f"""
+## ⚖️ Comparison Analysis: {symbols[0]} vs {symbols[1]}
+
+"""
+            
+            # Create comparison table
+            comp_data = []
+            for symbol in symbols:
+                if symbol in analyses:
+                    analysis = analyses[symbol]
+                    comp_data.append({
+                        "Symbol": symbol,
+                        "Name": analysis["info"].get("longName", symbol)[:30],
+                        "Price": f"${analysis['price']:.2f}",
+                        "Change": f"{analysis['change']:+.2f}%",
+                        "P/E": f"{analysis['fundamental'].get('pe_ratio', 0):.1f}" if analysis['fundamental'].get('pe_ratio') else 'N/A',
+                        "Market Cap": f"${(analysis['fundamental'].get('market_cap', 0) or 0)/1e9:.1f}B" if analysis['fundamental'].get('market_cap') else 'N/A',
+                        "RSI": f"{analysis['technical'].get('rsi', 0):.1f}" if analysis['technical'].get('rsi') else 'N/A'
+                    })
+            
+            if comp_data:
+                comparison_table = pd.DataFrame(comp_data)
             
         elif update["type"] == "chart":
             chart_data = update["content"]
@@ -819,6 +1017,8 @@ if execute_btn and user_input.strip():
                 final_message["technical_table"] = technical_table
             if fundamental_table is not None:
                 final_message["fundamental_table"] = fundamental_table
+            if comparison_table is not None:
+                final_message["comparison_table"] = comparison_table
             
             st.session_state.messages.append(final_message)
             st.rerun()
