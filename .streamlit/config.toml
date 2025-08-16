@@ -1,14 +1,21 @@
 [theme]
-primaryColor = "#4CAF50"
+primaryColor = "#667eea"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
+secondaryBackgroundColor = "#f8f9fa"
 textColor = "#262730"
 font = "sans serif"
 
 [server]
-maxUploadSize = 10
+headless = true
 enableCORS = false
-enableXsrfProtection = true
+port = 8501
+enableXsrfProtection = false
+enableWebsocketCompression = false
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
+serverPort = 8501
+
+[logger]
+level = "info"
