@@ -681,124 +681,6 @@ class QuantGPTChatbot:
 def get_chatbot():
     return QuantGPTChatbot()
 
-# 初始化会话状态
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "chatbot" not in st.session_state:
-    st.session_state.chatbot = get_chatbot()
-
-# 头部
-st.markdown("""
-<div class="header">
-    <h1>🤖 QuantGPT</h1>
-    <p style="color: #6b7280; font-size: 1.1rem;">AI量化交易助手 - 专业的股票分析与交易策略平台</p>
-</div>
-""", unsafe_allow_html=True)
-
-# 状态指示器
-st.markdown("""
-<div class="status-indicator">
-    <span>🟢</span>
-    <span>系统运行正常 | AI模型已加载 | 数据连接正常</span>
-</div>
-""", unsafe_allow_html=True)
-
-# 示例命令 (如果没有历史消息)
-if not st.session_state.messages:
-    st.markdown("### 💡 试试这些命令:")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("📊 分析 AAPL", key="ex1"):
-            st.session_state.messages.append({"role": "user", "content": "分析 AAPL"})
-            st.rerun()
-        
-        if st.button("🔍 筛选 PE < 15 的股票", key="ex2"):
-            st.session_state.messages.append({"role": "user", "content": "筛选 PE < 15 的股票"})
-            st.rerun()
-    
-    with col2:
-        if st.button("⚖️ 比较 AAPL 和 GOOGL", key="ex3"):
-            st.session_state.messages.append({"role": "user", "content": "比较 AAPL 和 GOOGL"})
-            st.rerun()
-        
-        if st.button("🔬 回测 TSLA 的RSI策略", key="ex4"):
-            st.session_state.messages.append({"role": "user", "content": "回测 TSLA 的RSI策略"})
-            st.rerun()
-
-# 显示聊天历史
-for message in st.session_state.messages:
-    if message["role"] == "user":
-        st.markdown(f"""
-        <div class="user-message">
-            <strong>🧑‍💼 您:</strong><br/>
-            {message["content"]}
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="ai-message">
-            <strong>🤖 QuantGPT:</strong><br/>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 显示AI回复内容
-        if "chart_data" in message:
-            # 显示图表
-            st.plotly_chart(message["chart_data"], use_container_width=True)
-        
-        if "table_data" in message:
-            # 显示表格
-            st.dataframe(message["table_data"], use_container_width=True)
-        
-        # 显示文本内容
-        st.markdown(message["content"])
-
-# 输入框
-st.markdown("### 💬 与QuantGPT对话")
-
-# 创建输入框
-user_input = st.text_input(
-    "",
-    placeholder="请输入您的指令，例如：分析 AAPL，比较 AAPL 和 GOOGL，筛选 PE < 20 的股票...",
-    key="user_input",
-    label_visibility="collapsed"
-)
-
-# 发送按钮
-col1, col2 = st.columns([6, 1])
-with col2:
-    send_button = st.button("发送", type="primary", use_container_width=True)
-
-# 处理用户输入
-if send_button and user_input.strip():
-    # 添加用户消息
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    
-    # 显示思考状态
-    with st.spinner("🤖 QuantGPT正在思考..."):
-        try:
-            # 处理命令
-            result = st.session_state.chatbot.process_command(user_input)
-            
-            # 生成AI回复
-            ai_response = generate_ai_response(result)
-            
-            # 添加AI消息
-            st.session_state.messages.append(ai_response)
-            
-        except Exception as e:
-            error_response = {
-                "role": "assistant",
-                "content": f"抱歉，处理您的请求时出现了错误：{str(e)}\n\n请检查网络连接或稍后重试。"
-            }
-            st.session_state.messages.append(error_response)
-    
-    # 清空输入框并刷新
-    st.rerun()
-
 def generate_ai_response(result: Dict) -> Dict:
     """生成AI回复"""
     response = {"role": "assistant", "content": ""}
@@ -1044,6 +926,124 @@ def generate_ai_response(result: Dict) -> Dict:
             response["content"] += "\n❌ 未找到符合条件的股票，建议调整筛选条件"
     
     return response
+
+# 初始化会话状态
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "chatbot" not in st.session_state:
+    st.session_state.chatbot = get_chatbot()
+
+# 头部
+st.markdown("""
+<div class="header">
+    <h1>🤖 QuantGPT</h1>
+    <p style="color: #6b7280; font-size: 1.1rem;">AI量化交易助手 - 专业的股票分析与交易策略平台</p>
+</div>
+""", unsafe_allow_html=True)
+
+# 状态指示器
+st.markdown("""
+<div class="status-indicator">
+    <span>🟢</span>
+    <span>系统运行正常 | AI模型已加载 | 数据连接正常</span>
+</div>
+""", unsafe_allow_html=True)
+
+# 示例命令 (如果没有历史消息)
+if not st.session_state.messages:
+    st.markdown("### 💡 试试这些命令:")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("📊 分析 AAPL", key="ex1"):
+            st.session_state.messages.append({"role": "user", "content": "分析 AAPL"})
+            st.rerun()
+        
+        if st.button("🔍 筛选 PE < 15 的股票", key="ex2"):
+            st.session_state.messages.append({"role": "user", "content": "筛选 PE < 15 的股票"})
+            st.rerun()
+    
+    with col2:
+        if st.button("⚖️ 比较 AAPL 和 GOOGL", key="ex3"):
+            st.session_state.messages.append({"role": "user", "content": "比较 AAPL 和 GOOGL"})
+            st.rerun()
+        
+        if st.button("🔬 回测 TSLA 的RSI策略", key="ex4"):
+            st.session_state.messages.append({"role": "user", "content": "回测 TSLA 的RSI策略"})
+            st.rerun()
+
+# 显示聊天历史
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.markdown(f"""
+        <div class="user-message">
+            <strong>🧑‍💼 您:</strong><br/>
+            {message["content"]}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="ai-message">
+            <strong>🤖 QuantGPT:</strong><br/>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 显示AI回复内容
+        if "chart_data" in message:
+            # 显示图表
+            st.plotly_chart(message["chart_data"], use_container_width=True)
+        
+        if "table_data" in message:
+            # 显示表格
+            st.dataframe(message["table_data"], use_container_width=True)
+        
+        # 显示文本内容
+        st.markdown(message["content"])
+
+# 输入框
+st.markdown("### 💬 与QuantGPT对话")
+
+# 创建输入框
+user_input = st.text_input(
+    "输入指令",
+    placeholder="请输入您的指令，例如：分析 AAPL，比较 AAPL 和 GOOGL，筛选 PE < 20 的股票...",
+    key="user_input",
+    label_visibility="collapsed"
+)
+
+# 发送按钮
+col1, col2 = st.columns([6, 1])
+with col2:
+    send_button = st.button("发送", type="primary", use_container_width=True)
+
+# 处理用户输入
+if send_button and user_input.strip():
+    # 添加用户消息
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    
+    # 显示思考状态
+    with st.spinner("🤖 QuantGPT正在思考..."):
+        try:
+            # 处理命令
+            result = st.session_state.chatbot.process_command(user_input)
+            
+            # 生成AI回复
+            ai_response = generate_ai_response(result)
+            
+            # 添加AI消息
+            st.session_state.messages.append(ai_response)
+            
+        except Exception as e:
+            error_response = {
+                "role": "assistant",
+                "content": f"抱歉，处理您的请求时出现了错误：{str(e)}\n\n请检查网络连接或稍后重试。"
+            }
+            st.session_state.messages.append(error_response)
+    
+    # 清空输入框并刷新
+    st.rerun()
 
 # 清除对话历史按钮
 if st.session_state.messages:
