@@ -365,4 +365,105 @@ def main():
     st.markdown("""
     <div class="terminal-header">
         <h2>📈 Stock Analysis Terminal Pro</h2>
-        <p>Pr
+        <p>Professional Real-time Market Analysis • Stock Screening • Portfolio Comparison</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 状态栏
+    st.markdown("""
+    <div class="status-bar">
+        <div>🟢 SYSTEM ONLINE</div>
+        <div>📡 REAL-TIME DATA</div>
+        <div>🤖 AI ANALYSIS</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 显示消息历史
+    for i, msg in enumerate(st.session_state.messages):
+        if msg["role"] == "trader":
+            st.markdown(f'<div class="user-message"><b>TRADER:</b> {msg["content"]}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="ai-message"><b>TERMINAL:</b> {msg["content"]}</div>', unsafe_allow_html=True)
+            if "chart" in msg:
+                # 为每个图表生成唯一ID
+                chart_id = hashlib.md5(f"{msg['content']}_{i}".encode()).hexdigest()
+                st.plotly_chart(msg["chart"], use_container_width=True, key=f"chart_{chart_id}")
+            if "results" in msg:
+                st.dataframe(pd.DataFrame(msg["results"]))
+    
+    # 输入区域 - 添加回车键支持
+    with st.form(key='command_form'):
+        user_input = st.text_input(
+            "Command (e.g., AAPL, screen PE<20, compare AAPL MSFT, TECH*)", 
+            key="input",
+            help="Press Enter to execute command"
+        )
+        col1, col2 = st.columns(2)
+        with col1:
+            submit_button = st.form_submit_button("🚀 Execute")
+        with col2:
+            if st.form_submit_button("🗑️ Clear"):
+                st.session_state.messages = []
+                st.rerun()
+    
+    # 处理表单提交
+    if submit_button or user_input:
+        if user_input.strip():
+            # 添加用户消息 - 修改为TRADER
+            st.session_state.messages.append({"role": "trader", "content": user_input})
+            process_command(user_input)
+
+def process_command(command: str):
+    """Process user command and display results"""
+    analyzer = st.session_state.analyzer
+    container = st.empty()
+    
+    for response in analyzer.process_command(command):
+        if response["type"] == "status":
+            container.markdown(f'<div class="ai-message">{response["content"]}</div>', unsafe_allow_html=True)
+        elif response["type"] == "analysis":
+            data = response["content"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Analysis for {data['symbol']}: Price ${data['price']:.2f}, Change {data['change']:.2f}%, PE {data['pe']}, RSI {data['rsi']:.1f}",
+                "chart": data["chart"]
+            })
+            st.rerun()
+        elif response["type"] == "screening":
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Found {len(results)} stocks matching criteria",
+                "results": results
+            })
+            st.rerun()
+        elif response["type"] == "comparison":
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Comparison of {len(results)} stocks",
+                "results": results
+            })
+            st.rerun()
+        elif response["type"] == "check_all":
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Found {len(results)} stocks starting with {response['content']['prefix']}",
+                "results": results
+            })
+            st.rerun()
+        elif response["type"] == "multiple_analysis":
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Analysis of {len(results)} stocks",
+                "results": results
+            })
+            st.rerun()
+        elif response["type"] == "error":
+            st.session_state.messages.append({"role": "assistant", "content": response["content"]})
+            st.rerun()
+
+if __name__ == "__main__":
+    main()
