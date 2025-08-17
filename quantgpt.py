@@ -1,448 +1,3 @@
-if criteria_type == 'custom':
-            indicator = criteria.get('indicator', '').upper()
-            operator = criteria.get('operator', '>')
-            value = criteria.get('value', 0)
-            
-            if indicator in ['PE', 'P/E']:
-                pe = stock_data.get('pe_ratio')
-                if pe is None or pe <= 0:
-                    return False
-                if operator == '<': return pe < value
-                elif operator == '>': return pe > value
-                elif operator == '=': return abs(pe - value) < 0.5
-                
-            elif indicator in ['PB', 'P/B']:
-                pb = stock_data.get('pb_ratio')
-                if pb is None or pb <= 0:
-                    return False
-                if operator == '<': return pb < value
-                elif operator == '>': return pb > value
-                elif operator == '=': return abs(pb - value) < 0.1
-                
-            elif indicator == 'ROE':
-                roe = stock_data.get('roe')
-                if roe is None:
-                    return False
-                roe_percent = roe * 100
-                if operator == '<': return roe_percent < value
-                elif operator == '>': return roe_percent > value
-                elif operator == '=': return abs(roe_percent - value) < 1
-                
-            elif indicator in ['DEBT', 'DEBT/EQUITY', 'DEBT-TO-EQUITY']:
-                debt_eq = stock_data.get('debt_to_equity')
-                if debt_eq is None:
-                    return False
-                if operator == '<': return debt_eq < value
-                elif operator == '>': return debt_eq > value
-                elif operator == '=': return abs(debt_eq - value) < 0.1
-                
-            elif indicator in ['DIVIDEND', 'DIV', 'YIELD']:
-                div_yield = stock_data.get('dividend_yield')
-                if div_yield is None:
-                    return False
-                div_percent = div_yield * 100
-                if operator == '<': return div_percent < value
-                elif operator == '>': return div_percent > value
-                elif operator == '=': return abs(div_percent - value) < 0.1
-                
-            elif indicator == 'RSI':
-                rsi = stock_data.get('rsi')
-                if rsi is None:
-                    return False
-                if operator == '<': return rsi < value
-                elif operator == '>': return rsi > value
-                elif operator == '=': return abs(rsi - value) < 2
-                
-            elif indicator == 'PRICE':
-                price = stock_data.get('price')
-                if price is None:
-                    return False
-                if operator == '<': return price < value
-                elif operator == '>': return price > value
-                elif operator == '=': return abs(price - value) < 1
-            
-            return False  # If no custom criteria matched
-        
-        elif criteria_type == 'dividend':
-            div_yield = stock_data.get('dividend_yield')
-            return div_yield and div_yield > 0.03  # > 3%
-            
-        elif criteria_type == 'growth':
-            revenue_growth = stock_data.get('revenue_growth')
-            roe = stock_data.get('roe')
-            return (revenue_growth and revenue_growth > 0.15) or (roe and roe > 0.2)
-            
-        elif criteria_type == 'value':
-            pe = stock_data.get('pe_ratio')
-            pb = stock_data.get('pb_ratio')
-            return (pe and 5 < pe < 20) and (pb and pb < 3)
-            
-        elif criteria_type == 'blue_chip':
-            market_cap = stock_data.get('market_cap')
-            return market_cap and market_cap > 10e9  # > $10B
-            
-        elif criteria_type == 'small_cap':
-            market_cap = stock_data.get('market_cap')
-            return market_cap and market_cap < 2e9  # < $2B
-        
-        return True  # 'all' type
-            market_cap = stock_data.get('market_cap')
-            return market_cap and market_cap > 10e9  # > $10B
-            
-        elif criteria_type == 'small_cap':
-            market_cap = stock_data.get('market_cap')
-            return market_cap and market_cap < 2e9  # < $2B
-        
-        return True  # 'all' type
-    
-    def _sort_screening_results(self, results: List[Dict], criteria: Dict) -> List[Dict]:
-        """Sort screening results based on criteria"""
-        criteria_type = criteria.get('type', 'all')
-        
-        if criteria_type == 'dividend':
-            return sorted(results, key=lambda x: x.get('dividend_yield', 0) or 0, reverse=True)
-        elif criteria_type == 'growth':
-            return sorted(results, key=lambda x: x.get('revenue_growth', 0) or 0, reverse=True)
-        elif criteria_type == 'value':
-            return sorted(results, key=lambda x: x.get('pe_ratio', 999) or 999)
-        elif criteria_type == 'blue_chip' or criteria_type == 'small_cap':
-            return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
-        else:
-            # Custom or default sort by market cap
-            return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
-        
-    def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
-        """Stream analysis results progressively"""
-        
-        # Validate symbol first
-        if not self.parser.validate_symbol(symbol):
-            yield {
-                "type": "error",
-                "content": f"❌ Invalid symbol format: {symbol}"
-            }
-            return
-        
-        # Step 1: Initial validation
-        yield {
-            "type": "status",
-            "content": f"🔍 Validating symbol: {symbol.upper()}"
-        }
-        time.sleep(0.5)
-        
-        # Step 2: Data fetching
-        yield {
-            "type": "status", 
-            "content": f"📊 Fetching market data for {symbol.upper()}..."
-        }
-        
-        try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="1y")
-            info = ticker.info
-            
-            if data.empty:
-                yield {
-                    "type": "error",
-                    "content": f"❌ No data found for symbol: {symbol.upper()}. Please check if the symbol is correct."
-                }
-                return
-            
-            time.sleep(1)
-            
-            # Step 3: Basic info
-            yield {
-                "type": "info",
-                "content": {
-                    "symbol": symbol.upper(),
-                    "name": info.get("longName", symbol.upper()),
-                    "sector": info.get("sector", "Unknown"),
-                    "price": data['Close'].iloc[-1],
-                    "change": ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
-                }
-            }
-            
-            # Step 4: Technical analysis
-            yield {
-                "type": "status",
-                "content": "🔬 Computing technical indicators..."
-            }
-            time.sleep(0.8)
-            
-            technical_data = self._calculate_technical_indicators(data)
-            yield {
-                "type": "technical",
-                "content": technical_data
-            }
-            
-            # Step 5: Fundamental analysis
-            yield {
-                "type": "status", 
-                "content": "💰 Analyzing fundamentals..."
-            }
-            time.sleep(0.8)
-            
-            fundamental_data = self._extract_fundamentals(info)
-            yield {
-                "type": "fundamental",
-                "content": fundamental_data
-            }
-            
-            # Step 6: AI insights
-            yield {
-                "type": "status",
-                "content": "🤖 Generating AI insights..."
-            }
-            time.sleep(1)
-            
-            ai_insights = self._generate_insights(technical_data, fundamental_data, data)
-            yield {
-                "type": "insights",
-                "content": ai_insights
-            }
-            
-            # Step 7: Chart data
-            yield {
-                "type": "status",
-                "content": "📈 Preparing interactive charts..."
-            }
-            time.sleep(0.5)
-            
-            chart_data = self._create_chart(data, technical_data)
-            yield {
-                "type": "chart",
-                "content": chart_data
-            }
-            
-            # Final status
-            yield {
-                "type": "complete",
-                "content": f"✅ Analysis complete for {symbol.upper()}"
-            }
-            
-        except Exception as e:
-            yield {
-                "type": "error",
-                "content": f"❌ Analysis failed for {symbol.upper()}: {str(e)}"
-            }
-    
-    def _calculate_technical_indicators(self, data: pd.DataFrame) -> Dict:
-        """Calculate technical indicators"""
-        close = data['Close']
-        high = data['High'] 
-        low = data['Low']
-        volume = data['Volume']
-        
-        indicators = {}
-        
-        # Moving averages
-        indicators['sma_20'] = close.rolling(20).mean().iloc[-1] if len(close) >= 20 else None
-        indicators['sma_50'] = close.rolling(50).mean().iloc[-1] if len(close) >= 50 else None
-        indicators['ema_12'] = close.ewm(span=12).mean().iloc[-1] if len(close) >= 12 else None
-        indicators['ema_26'] = close.ewm(span=26).mean().iloc[-1] if len(close) >= 26 else None
-        
-        # RSI
-        if len(close) >= 14:
-            delta = close.diff()
-            gain = delta.where(delta > 0, 0).rolling(14).mean()
-            loss = -delta.where(delta < 0, 0).rolling(14).mean()
-            rs = gain / loss
-            indicators['rsi'] = (100 - (100 / (1 + rs))).iloc[-1]
-        
-        # MACD
-        if len(close) >= 26:
-            ema_12 = close.ewm(span=12).mean()
-            ema_26 = close.ewm(span=26).mean()
-            macd = ema_12 - ema_26
-            signal = macd.ewm(span=9).mean()
-            indicators['macd'] = macd.iloc[-1]
-            indicators['macd_signal'] = signal.iloc[-1]
-            indicators['macd_histogram'] = (macd - signal).iloc[-1]
-        
-        # Bollinger Bands
-        if len(close) >= 20:
-            sma = close.rolling(20).mean()
-            std = close.rolling(20).std()
-            indicators['bb_upper'] = (sma + 2*std).iloc[-1]
-            indicators['bb_lower'] = (sma - 2*std).iloc[-1]
-            indicators['bb_middle'] = sma.iloc[-1]
-        
-        # Volume
-        indicators['volume_avg'] = volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
-        indicators['volume_ratio'] = volume.iloc[-1] / volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
-        
-        return indicators
-    
-    def _extract_fundamentals(self, info: Dict) -> Dict:
-        """Extract fundamental data"""
-        return {
-            'market_cap': info.get('marketCap'),
-            'pe_ratio': info.get('trailingPE'),
-            'pb_ratio': info.get('priceToBook'),
-            'ps_ratio': info.get('priceToSalesTrailing12Months'),
-            'roe': info.get('returnOnEquity'),
-            'debt_to_equity': info.get('debtToEquity'),
-            'current_ratio': info.get('currentRatio'),
-            'dividend_yield': info.get('dividendYield'),
-            'revenue_growth': info.get('revenueGrowth'),
-            'beta': info.get('beta'),
-            'target_price': info.get('targetMeanPrice')
-        }
-    
-    def _generate_insights(self, technical: Dict, fundamental: Dict, data: pd.DataFrame) -> Dict:
-        """Generate AI insights"""
-        signals = []
-        score = 0
-        total_factors = 0
-        
-        # RSI analysis
-        rsi = technical.get('rsi', 50)
-        if rsi < 30:
-            signals.append({"type": "bullish", "message": "RSI oversold - potential buy signal"})
-            score += 1
-        elif rsi > 70:
-            signals.append({"type": "bearish", "message": "RSI overbought - caution advised"})
-        else:
-            score += 0.5
-        total_factors += 1
-        
-        # MACD analysis
-        macd = technical.get('macd', 0)
-        macd_signal = technical.get('macd_signal', 0)
-        if macd and macd_signal:
-            if macd > macd_signal:
-                signals.append({"type": "bullish", "message": "MACD bullish crossover"})
-                score += 1
-            else:
-                signals.append({"type": "bearish", "message": "MACD bearish crossover"})
-            total_factors += 1
-        
-        # Moving average trend
-        current_price = data['Close'].iloc[-1]
-        sma_20 = technical.get('sma_20')
-        sma_50 = technical.get('sma_50')
-        
-        if sma_20 and sma_50:
-            if current_price > sma_20 > sma_50:
-                signals.append({"type": "bullish", "message": "Price above rising moving averages"})
-                score += 1
-            elif current_price < sma_20 < sma_50:
-                signals.append({"type": "bearish", "message": "Price below declining moving averages"})
-            else:
-                score += 0.5
-            total_factors += 1
-        
-        # Fundamental signals
-        pe = fundamental.get('pe_ratio')
-        if pe:
-            if pe < 15:
-                signals.append({"type": "bullish", "message": "Low PE ratio - potentially undervalued"})
-                score += 1
-            elif pe > 30:
-                signals.append({"type": "bearish", "message": "High PE ratio - potentially overvalued"})
-            else:
-                score += 0.5
-            total_factors += 1
-        
-        confidence = score / total_factors if total_factors > 0 else 0.5
-        
-        # Generate recommendation
-        if confidence >= 0.75:
-            recommendation = "Strong Buy"
-            risk_level = "Low"
-        elif confidence >= 0.6:
-            recommendation = "Buy" 
-            risk_level = "Medium"
-        elif confidence >= 0.4:
-            recommendation = "Hold"
-            risk_level = "Medium"
-        else:
-            recommendation = "Sell"
-            risk_level = "High"
-        
-        return {
-            'signals': signals,
-            'confidence': confidence,
-            'recommendation': recommendation,
-            'risk_level': risk_level,
-            'target_price': current_price * (1 + confidence * 0.15) if confidence > 0.5 else None
-        }
-    
-    def _create_chart(self, data: pd.DataFrame, technical: Dict) -> go.Figure:
-        """Create professional chart"""
-        fig = make_subplots(
-            rows=3, cols=1,
-            subplot_titles=('Price & Moving Averages', 'RSI', 'Volume'),
-            vertical_spacing=0.08,
-            row_heights=[0.6, 0.2, 0.2]
-        )
-        
-        # Candlestick chart
-        fig.add_trace(
-            go.Candlestick(
-                x=data.index,
-                open=data['Open'],
-                high=data['High'], 
-                low=data['Low'],
-                close=data['Close'],
-                name='Price',
-                increasing_line_color='#10B981',
-                decreasing_line_color='#EF4444'
-            ),
-            row=1, col=1
-        )
-        
-        # Moving averages
-        if len(data) >= 20:
-            sma_20 = data['Close'].rolling(20).mean()
-            fig.add_trace(
-                go.Scatter(x=data.index, y=sma_20, name='SMA 20',
-                          line=dict(color='#F59E0B', width=1)),
-                row=1, col=1
-            )
-        
-        if len(data) >= 50:
-            sma_50 = data['Close'].rolling(50).mean()
-            fig.add_trace(
-                go.Scatter(x=data.index, y=sma_50, name='SMA 50',
-                          line=dict(color='#EF4444', width=1)),
-                row=1, col=1
-            )
-        
-        # RSI
-        if len(data) >= 14:
-            delta = data['Close'].diff()
-            gain = delta.where(delta > 0, 0).rolling(14).mean()
-            loss = -delta.where(delta < 0, 0).rolling(14).mean()
-            rs = gain / loss
-            rsi = 100 - (100 / (1 + rs))
-            
-            fig.add_trace(
-                go.Scatter(x=data.index, y=rsi, name='RSI',
-                          line=dict(color='#8B5CF6', width=2)),
-                row=2, col=1
-            )
-            fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-            fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
-        
-        # Volume
-        fig.add_trace(
-            go.Bar(x=data.index, y=data['Volume'], name='Volume',
-                   marker_color='#3B82F6', opacity=0.7),
-            row=3, col=1
-        )
-        
-        fig.update_layout(
-            title="Technical Analysis Chart",
-            height=700,
-            showlegend=True,
-            template="plotly_dark",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Inter, sans-serif")
-        )
-        
-        return fig
-
 # Theme selector in sidebar
 with st.sidebar:
     st.markdown("### 🎨 Theme")
@@ -1676,6 +1231,8 @@ class StreamingAnalyzer:
                 if operator == '<': return price < value
                 elif operator == '>': return price > value
                 elif operator == '=': return abs(price - value) < 1
+            
+            return False  # If no custom criteria matched
         
         elif criteria_type == 'dividend':
             div_yield = stock_data.get('dividend_yield')
@@ -1693,4 +1250,358 @@ class StreamingAnalyzer:
             
         elif criteria_type == 'blue_chip':
             market_cap = stock_data.get('market_cap')
-            return market_cap and market_cap > 10e9  # >
+            return market_cap and market_cap > 10e9  # > $10B
+            
+        elif criteria_type == 'small_cap':
+            market_cap = stock_data.get('market_cap')
+            return market_cap and market_cap < 2e9  # < $2B
+        
+        return True  # 'all' type
+    
+    def _sort_screening_results(self, results: List[Dict], criteria: Dict) -> List[Dict]:
+        """Sort screening results based on criteria"""
+        criteria_type = criteria.get('type', 'all')
+        
+        if criteria_type == 'dividend':
+            return sorted(results, key=lambda x: x.get('dividend_yield', 0) or 0, reverse=True)
+        elif criteria_type == 'growth':
+            return sorted(results, key=lambda x: x.get('revenue_growth', 0) or 0, reverse=True)
+        elif criteria_type == 'value':
+            return sorted(results, key=lambda x: x.get('pe_ratio', 999) or 999)
+        elif criteria_type == 'blue_chip' or criteria_type == 'small_cap':
+            return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
+        else:
+            # Custom or default sort by market cap
+            return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
+        
+    def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
+        """Stream analysis results progressively"""
+        
+        # Validate symbol first
+        if not self.parser.validate_symbol(symbol):
+            yield {
+                "type": "error",
+                "content": f"❌ Invalid symbol format: {symbol}"
+            }
+            return
+        
+        # Step 1: Initial validation
+        yield {
+            "type": "status",
+            "content": f"🔍 Validating symbol: {symbol.upper()}"
+        }
+        time.sleep(0.5)
+        
+        # Step 2: Data fetching
+        yield {
+            "type": "status", 
+            "content": f"📊 Fetching market data for {symbol.upper()}..."
+        }
+        
+        try:
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(period="1y")
+            info = ticker.info
+            
+            if data.empty:
+                yield {
+                    "type": "error",
+                    "content": f"❌ No data found for symbol: {symbol.upper()}. Please check if the symbol is correct."
+                }
+                return
+            
+            time.sleep(1)
+            
+            # Step 3: Basic info
+            yield {
+                "type": "info",
+                "content": {
+                    "symbol": symbol.upper(),
+                    "name": info.get("longName", symbol.upper()),
+                    "sector": info.get("sector", "Unknown"),
+                    "price": data['Close'].iloc[-1],
+                    "change": ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
+                }
+            }
+            
+            # Step 4: Technical analysis
+            yield {
+                "type": "status",
+                "content": "🔬 Computing technical indicators..."
+            }
+            time.sleep(0.8)
+            
+            technical_data = self._calculate_technical_indicators(data)
+            yield {
+                "type": "technical",
+                "content": technical_data
+            }
+            
+            # Step 5: Fundamental analysis
+            yield {
+                "type": "status", 
+                "content": "💰 Analyzing fundamentals..."
+            }
+            time.sleep(0.8)
+            
+            fundamental_data = self._extract_fundamentals(info)
+            yield {
+                "type": "fundamental",
+                "content": fundamental_data
+            }
+            
+            # Step 6: AI insights
+            yield {
+                "type": "status",
+                "content": "🤖 Generating AI insights..."
+            }
+            time.sleep(1)
+            
+            ai_insights = self._generate_insights(technical_data, fundamental_data, data)
+            yield {
+                "type": "insights",
+                "content": ai_insights
+            }
+            
+            # Step 7: Chart data
+            yield {
+                "type": "status",
+                "content": "📈 Preparing interactive charts..."
+            }
+            time.sleep(0.5)
+            
+            chart_data = self._create_chart(data, technical_data)
+            yield {
+                "type": "chart",
+                "content": chart_data
+            }
+            
+            # Final status
+            yield {
+                "type": "complete",
+                "content": f"✅ Analysis complete for {symbol.upper()}"
+            }
+            
+        except Exception as e:
+            yield {
+                "type": "error",
+                "content": f"❌ Analysis failed for {symbol.upper()}: {str(e)}"
+            }
+    
+    def _calculate_technical_indicators(self, data: pd.DataFrame) -> Dict:
+        """Calculate technical indicators"""
+        close = data['Close']
+        high = data['High'] 
+        low = data['Low']
+        volume = data['Volume']
+        
+        indicators = {}
+        
+        # Moving averages
+        indicators['sma_20'] = close.rolling(20).mean().iloc[-1] if len(close) >= 20 else None
+        indicators['sma_50'] = close.rolling(50).mean().iloc[-1] if len(close) >= 50 else None
+        indicators['ema_12'] = close.ewm(span=12).mean().iloc[-1] if len(close) >= 12 else None
+        indicators['ema_26'] = close.ewm(span=26).mean().iloc[-1] if len(close) >= 26 else None
+        
+        # RSI
+        if len(close) >= 14:
+            delta = close.diff()
+            gain = delta.where(delta > 0, 0).rolling(14).mean()
+            loss = -delta.where(delta < 0, 0).rolling(14).mean()
+            rs = gain / loss
+            indicators['rsi'] = (100 - (100 / (1 + rs))).iloc[-1]
+        
+        # MACD
+        if len(close) >= 26:
+            ema_12 = close.ewm(span=12).mean()
+            ema_26 = close.ewm(span=26).mean()
+            macd = ema_12 - ema_26
+            signal = macd.ewm(span=9).mean()
+            indicators['macd'] = macd.iloc[-1]
+            indicators['macd_signal'] = signal.iloc[-1]
+            indicators['macd_histogram'] = (macd - signal).iloc[-1]
+        
+        # Bollinger Bands
+        if len(close) >= 20:
+            sma = close.rolling(20).mean()
+            std = close.rolling(20).std()
+            indicators['bb_upper'] = (sma + 2*std).iloc[-1]
+            indicators['bb_lower'] = (sma - 2*std).iloc[-1]
+            indicators['bb_middle'] = sma.iloc[-1]
+        
+        # Volume
+        indicators['volume_avg'] = volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
+        indicators['volume_ratio'] = volume.iloc[-1] / volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
+        
+        return indicators
+    
+    def _extract_fundamentals(self, info: Dict) -> Dict:
+        """Extract fundamental data"""
+        return {
+            'market_cap': info.get('marketCap'),
+            'pe_ratio': info.get('trailingPE'),
+            'pb_ratio': info.get('priceToBook'),
+            'ps_ratio': info.get('priceToSalesTrailing12Months'),
+            'roe': info.get('returnOnEquity'),
+            'debt_to_equity': info.get('debtToEquity'),
+            'current_ratio': info.get('currentRatio'),
+            'dividend_yield': info.get('dividendYield'),
+            'revenue_growth': info.get('revenueGrowth'),
+            'beta': info.get('beta'),
+            'target_price': info.get('targetMeanPrice')
+        }
+    
+    def _generate_insights(self, technical: Dict, fundamental: Dict, data: pd.DataFrame) -> Dict:
+        """Generate AI insights"""
+        signals = []
+        score = 0
+        total_factors = 0
+        
+        # RSI analysis
+        rsi = technical.get('rsi', 50)
+        if rsi < 30:
+            signals.append({"type": "bullish", "message": "RSI oversold - potential buy signal"})
+            score += 1
+        elif rsi > 70:
+            signals.append({"type": "bearish", "message": "RSI overbought - caution advised"})
+        else:
+            score += 0.5
+        total_factors += 1
+        
+        # MACD analysis
+        macd = technical.get('macd', 0)
+        macd_signal = technical.get('macd_signal', 0)
+        if macd and macd_signal:
+            if macd > macd_signal:
+                signals.append({"type": "bullish", "message": "MACD bullish crossover"})
+                score += 1
+            else:
+                signals.append({"type": "bearish", "message": "MACD bearish crossover"})
+            total_factors += 1
+        
+        # Moving average trend
+        current_price = data['Close'].iloc[-1]
+        sma_20 = technical.get('sma_20')
+        sma_50 = technical.get('sma_50')
+        
+        if sma_20 and sma_50:
+            if current_price > sma_20 > sma_50:
+                signals.append({"type": "bullish", "message": "Price above rising moving averages"})
+                score += 1
+            elif current_price < sma_20 < sma_50:
+                signals.append({"type": "bearish", "message": "Price below declining moving averages"})
+            else:
+                score += 0.5
+            total_factors += 1
+        
+        # Fundamental signals
+        pe = fundamental.get('pe_ratio')
+        if pe:
+            if pe < 15:
+                signals.append({"type": "bullish", "message": "Low PE ratio - potentially undervalued"})
+                score += 1
+            elif pe > 30:
+                signals.append({"type": "bearish", "message": "High PE ratio - potentially overvalued"})
+            else:
+                score += 0.5
+            total_factors += 1
+        
+        confidence = score / total_factors if total_factors > 0 else 0.5
+        
+        # Generate recommendation
+        if confidence >= 0.75:
+            recommendation = "Strong Buy"
+            risk_level = "Low"
+        elif confidence >= 0.6:
+            recommendation = "Buy" 
+            risk_level = "Medium"
+        elif confidence >= 0.4:
+            recommendation = "Hold"
+            risk_level = "Medium"
+        else:
+            recommendation = "Sell"
+            risk_level = "High"
+        
+        return {
+            'signals': signals,
+            'confidence': confidence,
+            'recommendation': recommendation,
+            'risk_level': risk_level,
+            'target_price': current_price * (1 + confidence * 0.15) if confidence > 0.5 else None
+        }
+    
+    def _create_chart(self, data: pd.DataFrame, technical: Dict) -> go.Figure:
+        """Create professional chart"""
+        fig = make_subplots(
+            rows=3, cols=1,
+            subplot_titles=('Price & Moving Averages', 'RSI', 'Volume'),
+            vertical_spacing=0.08,
+            row_heights=[0.6, 0.2, 0.2]
+        )
+        
+        # Candlestick chart
+        fig.add_trace(
+            go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'], 
+                low=data['Low'],
+                close=data['Close'],
+                name='Price',
+                increasing_line_color='#10B981',
+                decreasing_line_color='#EF4444'
+            ),
+            row=1, col=1
+        )
+        
+        # Moving averages
+        if len(data) >= 20:
+            sma_20 = data['Close'].rolling(20).mean()
+            fig.add_trace(
+                go.Scatter(x=data.index, y=sma_20, name='SMA 20',
+                          line=dict(color='#F59E0B', width=1)),
+                row=1, col=1
+            )
+        
+        if len(data) >= 50:
+            sma_50 = data['Close'].rolling(50).mean()
+            fig.add_trace(
+                go.Scatter(x=data.index, y=sma_50, name='SMA 50',
+                          line=dict(color='#EF4444', width=1)),
+                row=1, col=1
+            )
+        
+        # RSI
+        if len(data) >= 14:
+            delta = data['Close'].diff()
+            gain = delta.where(delta > 0, 0).rolling(14).mean()
+            loss = -delta.where(delta < 0, 0).rolling(14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            
+            fig.add_trace(
+                go.Scatter(x=data.index, y=rsi, name='RSI',
+                          line=dict(color='#8B5CF6', width=2)),
+                row=2, col=1
+            )
+            fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+            fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+        
+        # Volume
+        fig.add_trace(
+            go.Bar(x=data.index, y=data['Volume'], name='Volume',
+                   marker_color='#3B82F6', opacity=0.7),
+            row=3, col=1
+        )
+        
+        fig.update_layout(
+            title="Technical Analysis Chart",
+            height=700,
+            showlegend=True,
+            template="plotly_dark",
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Inter, sans-serif")
+        )
+        
+        return fig
