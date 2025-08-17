@@ -1,507 +1,4 @@
-# Theme selector in sidebar
-with st.sidebar:
-    st.markdown("### 🎨 Theme")
-    theme = st.selectbox("Select Theme", ["dark", "minimal", "terminal"], index=0)
-    
-    st.markdown("### 📊 Market Status")
-    st.markdown("""
-    <div class="metric-card">
-        <div class="metric-value">🟢 OPEN</div>
-        <div class="metric-label">US Markets</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Apply selected theme
-st.markdown(get_theme_css(theme), unsafe_allow_html=True)
-
-# Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "analyzer" not in st.session_state:
-    st.session_state.analyzer = StreamingAnalyzer()
-
-# Professional Header
-st.markdown("""
-<div class="terminal-header">
-    <div class="terminal-title">📈 US Stock Terminal Pro</div>
-    <div class="terminal-subtitle">Professional Real-time Market Analysis & Trading Intelligence</div>
-</div>
-""", unsafe_allow_html=True)
-
-# Status Bar
-st.markdown("""
-<div class="status-bar">
-    <div class="status-item">🟢 SYSTEM ONLINE</div>
-    <div class="status-item">🇺🇸 NYSE • NASDAQ</div>
-    <div class="status-item">🤖 AI ENGINE ACTIVE</div>
-    <div class="status-item">📡 REAL-TIME DATA</div>
-</div>
-""", unsafe_allow_html=True)
-
-# Quick Actions (if no messages)
-if not st.session_state.messages:
-    st.markdown("### ⚡ Quick Analysis")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if st.button("📊 Analyze AAPL", key="q1"):
-            st.session_state.messages.append({"role": "user", "content": "AAPL"})
-            st.rerun()
-    
-    with col2:
-        if st.button("🔍 Screen PE < 20", key="q2"):
-            st.session_state.messages.append({"role": "user", "content": "screen PE < 20"})
-            st.rerun()
-    
-    with col3:
-        if st.button("⚖️ Compare NVDA vs AAPL", key="q3"):
-            st.session_state.messages.append({"role": "user", "content": "compare NVDA and AAPL"})
-            st.rerun()
-    
-    with col4:
-        if st.button("💰 Find Dividend Stocks", key="q4"):
-            st.session_state.messages.append({"role": "user", "content": "find dividend stocks"})
-            st.rerun()
-    
-    # Advanced Examples Section
-    st.markdown("### 🎯 Advanced Screening Examples")
-    
-    adv_col1, adv_col2 = st.columns(2)
-    
-    with adv_col1:
-        st.markdown("**📈 Technical Screening:**")
-        if st.button("🔴 RSI Oversold (< 30)", key="adv1"):
-            st.session_state.messages.append({"role": "user", "content": "screen RSI < 30"})
-            st.rerun()
-        if st.button("💎 Value Stocks (PE < 15)", key="adv2"):
-            st.session_state.messages.append({"role": "user", "content": "screen PE < 15"})
-            st.rerun()
-        if st.button("🏦 Low Debt (< 0.3)", key="adv3"):
-            st.session_state.messages.append({"role": "user", "content": "screen debt < 0.3"})
-            st.rerun()
-    
-    with adv_col2:
-        st.markdown("**🎲 Category Screening:**")
-        if st.button("🌟 Growth Stocks", key="adv4"):
-            st.session_state.messages.append({"role": "user", "content": "find growth stocks"})
-            st.rerun()
-        if st.button("🔷 Blue Chip Stocks", key="adv5"):
-            st.session_state.messages.append({"role": "user", "content": "find blue chip stocks"})
-            st.rerun()
-        if st.button("🚀 Small Cap Stocks", key="adv6"):
-            st.session_state.messages.append({"role": "user", "content": "find small cap stocks"})
-            st.rerun()
-    
-    # Command Examples
-    st.markdown("### 📚 Command Examples")
-    
-    with st.expander("🔍 Screening Commands", expanded=True):
-        st.markdown("""
-        **Basic Screening:**
-        - `screen PE < 20` - Find stocks with P/E ratio below 20
-        - `screen PB < 2` - Find stocks with P/B ratio below 2
-        - `screen ROE > 15` - Find stocks with ROE above 15%
-        - `screen dividend > 4` - Find stocks with dividend yield above 4%
-        
-        **Technical Screening:**
-        - `screen RSI < 30` - Find oversold stocks
-        - `screen RSI > 70` - Find overbought stocks
-        - `screen price < 50` - Find stocks under $50
-        
-        **Category Screening:**
-        - `find dividend stocks` - High dividend yield stocks
-        - `find value stocks` - Undervalued stocks
-        - `find growth stocks` - High growth potential
-        - `find blue chip stocks` - Large cap stable companies
-        """)
-    
-    with st.expander("📊 Analysis Commands"):
-        st.markdown("""
-        **Single Stock Analysis:**
-        - `AAPL` or `analyze AAPL` - Comprehensive analysis
-        - `check NVDA` - Quick check
-        - `look at TSLA` - Detailed view
-        
-        **Stock Comparison:**
-        - `compare AAPL and GOOGL` - Side by side comparison
-        - `NVDA vs TSLA` - Quick comparison
-        - `MSFT versus AMZN` - Detailed comparison
-        """)
-        
-    with st.expander("🎯 Pro Tips"):
-        st.markdown("""
-        **Advanced Usage:**
-        - Use operators: `<`, `>`, `=` for precise screening
-        - Combine criteria: Screen first, then analyze individual stocks
-        - Compare similar stocks: Find stocks in same sector, then compare
-        
-        **Best Practices:**
-        - Start with broad screening, then narrow down
-        - Always verify with fundamental analysis
-        - Consider multiple timeframes for technical analysis
-        - Use comparison for final investment decisions
-        """)
-    
-    # Market Insights
-    st.markdown("### 📈 Market Quick Insights")
-    
-    insight_col1, insight_col2, insight_col3 = st.columns(3)
-    
-    with insight_col1:
-        st.markdown("""
-        <div class="metric-card">
-            <div class="metric-value">📊</div>
-            <div class="metric-label">150+ STOCKS TRACKED</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with insight_col2:
-        st.markdown("""
-        <div class="metric-card">
-            <div class="metric-value">🔍</div>
-            <div class="metric-label">8+ SCREENING CRITERIA</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with insight_col3:
-        st.markdown("""
-        <div class="metric-card">
-            <div class="metric-value">⚡</div>
-            <div class="metric-label">REAL-TIME ANALYSIS</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# Display chat history
-for message in st.session_state.messages:
-    if message["role"] == "user":
-        st.markdown(f"""
-        <div class="user-message">
-            <strong>👤 TRADER:</strong> {message["content"]}
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="ai-message">
-            <strong>🤖 TERMINAL:</strong>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Display message content
-        if "content" in message:
-            st.markdown(message["content"])
-        
-        # Display chart if present
-        if "chart" in message:
-            st.plotly_chart(message["chart"], use_container_width=True, config={'displayModeBar': False})
-        
-        # Display tables if present
-        if "technical_table" in message:
-            st.markdown("#### 📊 Technical Indicators")
-            st.dataframe(message["technical_table"], use_container_width=True, hide_index=True)
-        
-        if "fundamental_table" in message:
-            st.markdown("#### 💰 Fundamental Metrics")
-            st.dataframe(message["fundamental_table"], use_container_width=True, hide_index=True)
-            
-        if "comparison_table" in message:
-            st.markdown("#### ⚖️ Comparison Results")
-            st.dataframe(message["comparison_table"], use_container_width=True, hide_index=True)
-
-# Input section
-st.markdown("### 💬 Terminal Input")
-
-col1, col2, col3 = st.columns([6, 1, 1])
-
-with col1:
-    user_input = st.text_input(
-        "Command",
-        placeholder="Examples: AAPL, compare NVDA and AAPL, screen PE < 20, find dividend stocks...",
-        key="terminal_input",
-        label_visibility="collapsed"
-    )
-
-with col2:
-    execute_btn = st.button("🚀 EXECUTE", type="primary", use_container_width=True)
-
-with col3:
-    if st.session_state.messages:
-        clear_btn = st.button("🗑️ CLEAR", use_container_width=True)
-        if clear_btn:
-            st.session_state.messages = []
-            st.rerun()
-
-# Process input with streaming
-if execute_btn and user_input.strip():
-    # Parse command to extract symbols and action
-    parsed_command = st.session_state.analyzer.parser.parse_command(user_input.strip())
-    
-    # Add user message
-    st.session_state.messages.append({"role": "user", "content": user_input.strip()})
-    
-    # Create streaming container
-    streaming_container = st.empty()
-    result_content = ""
-    chart_data = None
-    technical_table = None
-    fundamental_table = None
-    comparison_table = None
-    
-    # Stream the analysis
-    for update in st.session_state.analyzer.process_command(user_input.strip()):
-        if update["type"] == "status":
-            streaming_container.markdown(f"""
-            <div class="streaming-message">
-                <strong>🤖 TERMINAL:</strong><br/>
-                {update["content"]}
-            </div>
-            """, unsafe_allow_html=True)
-            
-        elif update["type"] == "info":
-            info = update["content"]
-            price_color = "#10B981" if info["change"] > 0 else "#EF4444"
-            result_content += f"""
-## 📈 {info["symbol"]} - {info["name"]}
-
-**Sector:** {info["sector"]} | **Price:** ${info["price"]:.2f} | **Change:** <span style="color: {price_color}">{info["change"]:+.2f}%</span>
-
-"""
-            
-        elif update["type"] == "technical":
-            tech = update["content"]
-            result_content += """
-### 🔬 Technical Analysis
-
-"""
-            # Create technical indicators table
-            tech_data = []
-            if tech.get('rsi'): tech_data.append(["RSI (14)", f"{tech['rsi']:.1f}"])
-            if tech.get('sma_20'): tech_data.append(["SMA 20", f"${tech['sma_20']:.2f}"])
-            if tech.get('sma_50'): tech_data.append(["SMA 50", f"${tech['sma_50']:.2f}"])
-            if tech.get('macd'): tech_data.append(["MACD", f"{tech['macd']:.4f}"])
-            if tech.get('volume_ratio'): tech_data.append(["Volume Ratio", f"{tech['volume_ratio']:.2f}x"])
-            
-            if tech_data:
-                technical_table = pd.DataFrame(tech_data, columns=["Indicator", "Value"])
-            
-        elif update["type"] == "fundamental":
-            fund = update["content"]
-            result_content += """
-### 💰 Fundamental Analysis
-
-"""
-            # Create fundamental table
-            fund_data = []
-            if fund.get('pe_ratio'): fund_data.append(["P/E Ratio", f"{fund['pe_ratio']:.2f}"])
-            if fund.get('pb_ratio'): fund_data.append(["P/B Ratio", f"{fund['pb_ratio']:.2f}"])
-            if fund.get('roe'): fund_data.append(["ROE", f"{fund['roe']*100:.1f}%"])
-            if fund.get('debt_to_equity'): fund_data.append(["Debt/Equity", f"{fund['debt_to_equity']:.2f}"])
-            if fund.get('dividend_yield'): fund_data.append(["Dividend Yield", f"{fund['dividend_yield']*100:.2f}%"])
-            if fund.get('market_cap'): fund_data.append(["Market Cap", f"${fund['market_cap']/1e9:.1f}B"])
-            
-            if fund_data:
-                fundamental_table = pd.DataFrame(fund_data, columns=["Metric", "Value"])
-            
-        elif update["type"] == "insights":
-            insights = update["content"]
-            result_content += f"""
-### 🎯 AI Insights
-
-**Recommendation:** {insights["recommendation"]} | **Confidence:** {insights["confidence"]:.1%} | **Risk Level:** {insights["risk_level"]}
-
-"""
-            if insights.get("target_price"):
-                result_content += f"**Target Price:** ${insights['target_price']:.2f}\n\n"
-            
-            # Add signals
-            if insights.get("signals"):
-                result_content += "**Key Signals:**\n"
-                for signal in insights["signals"]:
-                    emoji = "🟢" if signal["type"] == "bullish" else "🔴"
-                    result_content += f"- {emoji} {signal['message']}\n"
-                result_content += "\n"
-        
-        elif update["type"] == "comparison":
-            comp = update["content"]
-            symbols = comp["symbols"]
-            analyses = comp["analyses"]
-            
-            result_content = f"""
-## ⚖️ Comparison Analysis: {symbols[0]} vs {symbols[1]}
-
-### 📊 Overview
-"""
-            
-            # Add basic comparison info
-            for symbol in symbols:
-                if symbol in analyses:
-                    analysis = analyses[symbol]
-                    price_color = "#10B981" if analysis['change'] > 0 else "#EF4444"
-                    result_content += f"""
-**{symbol}** - {analysis["info"].get("longName", symbol)[:40]}
-- Price: ${analysis['price']:.2f} (<span style="color: {price_color}">{analysis['change']:+.2f}%</span>)
-- Sector: {analysis["info"].get("sector", "Unknown")}
-
-"""
-            
-            # Create comparison table
-            comp_data = []
-            for symbol in symbols:
-                if symbol in analyses:
-                    analysis = analyses[symbol]
-                    comp_data.append({
-                        "Symbol": symbol,
-                        "Company": analysis["info"].get("longName", symbol)[:25] + "..." if len(analysis["info"].get("longName", symbol)) > 25 else analysis["info"].get("longName", symbol),
-                        "Price": f"${analysis['price']:.2f}",
-                        "Change %": f"{analysis['change']:+.2f}%",
-                        "P/E Ratio": f"{analysis['fundamental'].get('pe_ratio', 0):.1f}" if analysis['fundamental'].get('pe_ratio') else 'N/A',
-                        "Market Cap": f"${(analysis['fundamental'].get('market_cap', 0) or 0)/1e9:.1f}B" if analysis['fundamental'].get('market_cap') else 'N/A',
-                        "RSI": f"{analysis['technical'].get('rsi', 0):.1f}" if analysis['technical'].get('rsi') else 'N/A',
-                        "ROE": f"{(analysis['fundamental'].get('roe', 0) or 0)*100:.1f}%" if analysis['fundamental'].get('roe') else 'N/A'
-                    })
-            
-            if comp_data:
-                comparison_table = pd.DataFrame(comp_data)
-                
-            # Add simple comparison insights
-            if len(comp_data) == 2:
-                stock1, stock2 = comp_data[0], comp_data[1]
-                result_content += f"""
-### 🎯 Quick Comparison
-"""
-                
-                # Price comparison
-                price1 = float(stock1["Price"].replace("$", ""))
-                price2 = float(stock2["Price"].replace("$", ""))
-                if price1 > price2:
-                    result_content += f"- **Higher Price**: {stock1['Symbol']} (${price1:.2f}) vs {stock2['Symbol']} (${price2:.2f})\n"
-                else:
-                    result_content += f"- **Higher Price**: {stock2['Symbol']} (${price2:.2f}) vs {stock1['Symbol']} (${price1:.2f})\n"
-                
-                # Market cap comparison
-                if stock1["Market Cap"] != 'N/A' and stock2["Market Cap"] != 'N/A':
-                    cap1 = float(stock1["Market Cap"].replace("$", "").replace("B", ""))
-                    cap2 = float(stock2["Market Cap"].replace("$", "").replace("B", ""))
-                    larger_cap = stock1['Symbol'] if cap1 > cap2 else stock2['Symbol']
-                    result_content += f"- **Larger Market Cap**: {larger_cap}\n"
-                
-                # P/E comparison
-                if stock1["P/E Ratio"] != 'N/A' and stock2["P/E Ratio"] != 'N/A':
-                    pe1 = float(stock1["P/E Ratio"])
-                    pe2 = float(stock2["P/E Ratio"])
-                    lower_pe = stock1['Symbol'] if pe1 < pe2 else stock2['Symbol']
-                    result_content += f"- **Lower P/E (Better Value)**: {lower_pe}\n"
-        
-        elif update["type"] == "screening":
-            screen = update["content"]
-            criteria = screen["criteria"]
-            results = screen["results"]
-            total_screened = screen["total_screened"]
-            matches_found = screen["matches_found"]
-            
-            result_content = f"""
-## 🔍 Stock Screening Results
-
-### 📊 Screening Summary
-- **Criteria**: {criteria.get('original_text', 'Custom screening')}
-- **Stocks Screened**: {total_screened}
-- **Matches Found**: {matches_found}
-
-### 📋 Top Results
-"""
-            
-            if results:
-                # Create screening results table
-                screen_data = []
-                for i, stock in enumerate(results[:25]):  # Show top 25 results
-                    screen_data.append({
-                        "Rank": i + 1,
-                        "Symbol": stock['symbol'],
-                        "Company": stock.get('name', stock['symbol'])[:25],
-                        "Sector": stock.get('sector', 'Unknown')[:15],
-                        "Price": f"${stock.get('price', 0):.2f}",
-                        "Change %": f"{stock.get('change', 0):+.2f}%",
-                        "P/E": f"{stock.get('pe_ratio', 0):.1f}" if stock.get('pe_ratio') and stock.get('pe_ratio') > 0 else 'N/A',
-                        "P/B": f"{stock.get('pb_ratio', 0):.1f}" if stock.get('pb_ratio') and stock.get('pb_ratio') > 0 else 'N/A',
-                        "ROE": f"{(stock.get('roe', 0) or 0)*100:.1f}%" if stock.get('roe') else 'N/A',
-                        "Div %": f"{(stock.get('dividend_yield', 0) or 0)*100:.1f}%" if stock.get('dividend_yield') else 'N/A',
-                        "Market Cap": f"${(stock.get('market_cap', 0) or 0)/1e9:.1f}B" if stock.get('market_cap') else 'N/A',
-                        "RSI": f"{stock.get('rsi', 0):.0f}" if stock.get('rsi') else 'N/A'
-                    })
-                
-                comparison_table = pd.DataFrame(screen_data)
-                
-                if matches_found > 25:
-                    result_content += f"\n*Showing top 25 results out of {matches_found} matches*\n"
-            else:
-                result_content += "\n❌ No stocks found matching your criteria. Try adjusting the parameters.\n"
-            
-        elif update["type"] == "chart":
-            chart_data = update["content"]
-            
-        elif update["type"] == "complete":
-            # Final update - clear streaming container and add final message
-            streaming_container.empty()
-            
-            final_message = {
-                "role": "assistant",
-                "content": result_content
-            }
-            
-            if chart_data:
-                final_message["chart"] = chart_data
-            if technical_table is not None:
-                final_message["technical_table"] = technical_table
-            if fundamental_table is not None:
-                final_message["fundamental_table"] = fundamental_table
-            if comparison_table is not None:
-                final_message["comparison_table"] = comparison_table
-            
-            st.session_state.messages.append(final_message)
-            st.rerun()
-            
-        elif update["type"] == "error":
-            streaming_container.markdown(f"""
-            <div class="ai-message">
-                <strong>🤖 TERMINAL:</strong><br/>
-                {update["content"]}
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": update["content"]
-            })
-            time.sleep(2)
-            st.rerun()
-
-# Professional Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: var(--text-secondary); padding: 2rem; font-family: "Inter", sans-serif;'>
-    <p><strong>📈 US Stock Terminal Pro v2.0</strong></p>
-    <p>Advanced Stock Screening • Real-time Analysis • AI-Powered Insights • Professional Comparison Tools</p>
-    
-    <div style='margin: 1.5rem 0; display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;'>
-        <span>🔍 <strong>150+</strong> Stocks</span>
-        <span>📊 <strong>8+</strong> Screening Criteria</span>
-        <span>⚡ <strong>Real-time</strong> Data</span>
-        <span>🤖 <strong>AI</strong> Analysis</span>
-    </div>
-    
-    <div style='margin: 1rem 0; font-size: 0.8rem;'>
-        <strong>Supported Commands:</strong><br/>
-        Analysis: <code>AAPL</code>, <code>analyze NVDA</code> | 
-        Comparison: <code>compare AAPL vs GOOGL</code> | 
-        Screening: <code>screen PE &lt; 20</code>, <code>find dividend stocks</code>
-    </div>
-    
-    <p style="font-size: 0.75rem; margin-top: 1.5rem; opacity: 0.7;">
-        ⚠️ For educational and research purposes only. Not financial advice. Always do your own research.
-    </p>
-</div>
-""", unsafe_allow_html=True)import streamlit as st
+import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -703,33 +200,6 @@ def get_theme_css(theme="dark"):
         transform: translateY(-1px);
     }}
     
-    /* Quick Actions */
-    .quick-action {{
-        background: var(--bg-secondary);
-        border: 1px solid var(--bg-accent);
-        border-radius: 6px;
-        padding: 1rem;
-        margin: 0.5rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-    }}
-    
-    .quick-action:hover {{
-        border-color: var(--accent-color);
-        background: var(--bg-accent);
-    }}
-    
-    /* Data Tables */
-    .dataframe {{
-        background: var(--bg-secondary);
-        border: 1px solid var(--bg-accent);
-        border-radius: 6px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-    }}
-    
     /* Metrics */
     .metric-card {{
         background: var(--bg-secondary);
@@ -753,13 +223,6 @@ def get_theme_css(theme="dark"):
         margin-top: 0.25rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-    }}
-    
-    /* Responsive */
-    @media (max-width: 768px) {{
-        .terminal-header {{ padding: 1rem; }}
-        .status-bar {{ flex-direction: column; gap: 1rem; }}
-        .quick-action {{ margin: 0.25rem; }}
     }}
 </style>
 """
@@ -1045,54 +508,16 @@ class StreamingAnalyzer:
             "content": f"🔍 Starting stock screening: {criteria.get('original_text', 'Custom criteria')}"
         }
         
-        # Extended US stock universe
+        # Popular US stocks for screening
         stock_universe = [
-            # FAANG + Tech Giants
-            "AAPL", "GOOGL", "GOOG", "MSFT", "AMZN", "META", "TSLA", "NVDA", "NFLX", "ADBE",
-            "CRM", "ORCL", "IBM", "INTC", "AMD", "QCOM", "TXN", "NOW", "INTU", "MU",
-            
-            # Large Cap Blue Chips
-            "BRK-B", "UNH", "JNJ", "V", "JPM", "PG", "HD", "MA", "BAC", "ABBV",
-            "PFE", "KO", "PEP", "MRK", "COST", "WMT", "DIS", "VZ", "CMCSA", "XOM",
-            
-            # Financial Sector
-            "WFC", "GS", "MS", "C", "AXP", "BLK", "SPGI", "USB", "TFC", "PNC",
-            "COF", "SCHW", "CB", "MMC", "ICE", "CME", "AON", "TRV", "ALL", "PGR",
-            
-            # Healthcare & Pharma
-            "UNH", "JNJ", "PFE", "ABBV", "MRK", "TMO", "ABT", "LLY", "MDT", "BMY",
-            "AMGN", "GILD", "CVS", "CI", "ANTM", "HUM", "CNC", "MOH", "ELV", "VEEV",
-            
-            # Consumer & Retail
-            "WMT", "HD", "KO", "PEP", "MCD", "NKE", "SBUX", "TGT", "LOW", "TJX",
-            "COST", "CVX", "PM", "UL", "CL", "KMB", "GIS", "K", "HSY", "CLX",
-            
-            # Industrial & Manufacturing
-            "BA", "CAT", "HON", "UPS", "GE", "LMT", "MMM", "RTX", "DE", "FDX",
-            "EMR", "ETN", "ITW", "PH", "ROK", "DOV", "XYL", "IR", "OTIS", "CARR",
-            
-            # Energy & Utilities
-            "XOM", "CVX", "COP", "EOG", "SLB", "KMI", "OXY", "VLO", "PSX", "MPC",
-            "NEE", "DUK", "SO", "D", "AEP", "EXC", "XEL", "SRE", "PEG", "ES",
-            
-            # REITs & Real Estate
-            "AMT", "PLD", "CCI", "EQIX", "PSA", "WELL", "EXR", "AVB", "EQR", "SPG",
-            "O", "STOR", "NNN", "ADC", "FRT", "BXP", "VTR", "HCP", "UDR", "ESS",
-            
-            # Communication Services
-            "T", "VZ", "TMUS", "CHTR", "CMCSA", "DIS", "NFLX", "GOOGL", "META", "SNAP",
-            
-            # Materials & Mining
-            "LIN", "APD", "ECL", "SHW", "FCX", "NEM", "GOLD", "AEM", "KGC", "AU",
-            
-            # Small/Mid Cap Growth
-            "ROKU", "ZM", "DOCU", "SNOW", "PLTR", "RBLX", "U", "NET", "CRWD", "ZS",
-            "OKTA", "TWLO", "DDOG", "MDB", "ESTC", "FSLY", "CFLT", "S", "WORK", "TEAM"
+            "AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA", "NVDA", "NFLX", "AMD", "INTC",
+            "JPM", "BAC", "WFC", "GS", "V", "MA", "PG", "KO", "PEP", "WMT",
+            "JNJ", "PFE", "ABBV", "MRK", "UNH", "HD", "DIS", "VZ", "T", "COST"
         ]
         
         yield {
             "type": "status",
-            "content": f"📊 Screening {len(stock_universe)} stocks..."
+            "content": f"📊 Screening {len(stock_universe)} popular stocks..."
         }
         
         results = []
@@ -1101,7 +526,7 @@ class StreamingAnalyzer:
         for symbol in stock_universe:
             try:
                 processed += 1
-                if processed % 20 == 0:  # Update progress every 20 stocks
+                if processed % 10 == 0:  # Update progress every 10 stocks
                     yield {
                         "type": "status",
                         "content": f"🔄 Progress: {processed}/{len(stock_universe)} stocks analyzed..."
@@ -1605,3 +1030,266 @@ class StreamingAnalyzer:
         )
         
         return fig
+
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "analyzer" not in st.session_state:
+    st.session_state.analyzer = StreamingAnalyzer()
+
+# Theme selector in sidebar
+with st.sidebar:
+    st.markdown("### 🎨 Theme")
+    theme = st.selectbox("Select Theme", ["dark", "minimal", "terminal"], index=0)
+    
+    st.markdown("### 📊 Market Status")
+    st.markdown("""
+    <div class="metric-card">
+        <div class="metric-value">🟢 OPEN</div>
+        <div class="metric-label">US Markets</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Apply selected theme
+st.markdown(get_theme_css(theme), unsafe_allow_html=True)
+
+# Professional Header
+st.markdown("""
+<div class="terminal-header">
+    <div class="terminal-title">📈 US Stock Terminal Pro</div>
+    <div class="terminal-subtitle">Professional Real-time Market Analysis & Trading Intelligence</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Status Bar
+st.markdown("""
+<div class="status-bar">
+    <div class="status-item">🟢 SYSTEM ONLINE</div>
+    <div class="status-item">🇺🇸 NYSE • NASDAQ</div>
+    <div class="status-item">🤖 AI ENGINE ACTIVE</div>
+    <div class="status-item">📡 REAL-TIME DATA</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Quick Actions (if no messages)
+if not st.session_state.messages:
+    st.markdown("### ⚡ Quick Analysis")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if st.button("📊 Analyze AAPL", key="q1"):
+            st.session_state.messages.append({"role": "user", "content": "AAPL"})
+            st.rerun()
+    
+    with col2:
+        if st.button("🔍 Screen PE < 20", key="q2"):
+            st.session_state.messages.append({"role": "user", "content": "screen PE < 20"})
+            st.rerun()
+    
+    with col3:
+        if st.button("⚖️ Compare NVDA vs AAPL", key="q3"):
+            st.session_state.messages.append({"role": "user", "content": "compare NVDA and AAPL"})
+            st.rerun()
+    
+    with col4:
+        if st.button("💰 Find Dividend Stocks", key="q4"):
+            st.session_state.messages.append({"role": "user", "content": "find dividend stocks"})
+            st.rerun()
+
+# Display chat history
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.markdown(f"""
+        <div class="user-message">
+            <strong>👤 TRADER:</strong> {message["content"]}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="ai-message">
+            <strong>🤖 TERMINAL:</strong>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Display message content
+        if "content" in message:
+            st.markdown(message["content"])
+        
+        # Display chart if present
+        if "chart" in message:
+            st.plotly_chart(message["chart"], use_container_width=True, config={'displayModeBar': False})
+
+# Input section
+st.markdown("### 💬 Terminal Input")
+
+col1, col2 = st.columns([8, 1])
+
+with col1:
+    user_input = st.text_input(
+        "Command",
+        placeholder="Examples: AAPL, compare NVDA and AAPL, screen PE < 20, find dividend stocks...",
+        key="terminal_input",
+        label_visibility="collapsed"
+    )
+
+with col2:
+    execute_btn = st.button("🚀 EXECUTE", type="primary", use_container_width=True)
+
+# Process input with streaming
+if execute_btn and user_input.strip():
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": user_input.strip()})
+    
+    # Create streaming container
+    streaming_container = st.empty()
+    result_content = ""
+    chart_data = None
+    
+    # Stream the analysis
+    for update in st.session_state.analyzer.process_command(user_input.strip()):
+        if update["type"] == "status":
+            streaming_container.markdown(f"""
+            <div class="streaming-message">
+                <strong>🤖 TERMINAL:</strong><br/>
+                {update["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+            
+        elif update["type"] == "info":
+            info = update["content"]
+            price_color = "#10B981" if info["change"] > 0 else "#EF4444"
+            result_content += f"""
+## 📈 {info["symbol"]} - {info["name"]}
+
+**Sector:** {info["sector"]} | **Price:** ${info["price"]:.2f} | **Change:** <span style="color: {price_color}">{info["change"]:+.2f}%</span>
+
+"""
+            
+        elif update["type"] == "technical":
+            tech = update["content"]
+            result_content += """
+### 🔬 Technical Analysis
+
+"""
+            if tech.get('rsi'): result_content += f"**RSI (14):** {tech['rsi']:.1f}\n\n"
+            if tech.get('sma_20'): result_content += f"**SMA 20:** ${tech['sma_20']:.2f}\n\n"
+            if tech.get('sma_50'): result_content += f"**SMA 50:** ${tech['sma_50']:.2f}\n\n"
+            
+        elif update["type"] == "fundamental":
+            fund = update["content"]
+            result_content += """
+### 💰 Fundamental Analysis
+
+"""
+            if fund.get('pe_ratio'): result_content += f"**P/E Ratio:** {fund['pe_ratio']:.2f}\n\n"
+            if fund.get('market_cap'): result_content += f"**Market Cap:** ${fund['market_cap']/1e9:.1f}B\n\n"
+            
+        elif update["type"] == "insights":
+            insights = update["content"]
+            result_content += f"""
+### 🎯 AI Insights
+
+**Recommendation:** {insights["recommendation"]} | **Confidence:** {insights["confidence"]:.1%}
+
+"""
+            # Add signals
+            if insights.get("signals"):
+                result_content += "**Key Signals:**\n"
+                for signal in insights["signals"]:
+                    emoji = "🟢" if signal["type"] == "bullish" else "🔴"
+                    result_content += f"- {emoji} {signal['message']}\n"
+                result_content += "\n"
+        
+        elif update["type"] == "comparison":
+            comp = update["content"]
+            symbols = comp["symbols"]
+            analyses = comp["analyses"]
+            
+            result_content = f"""
+## ⚖️ Comparison Analysis: {symbols[0]} vs {symbols[1]}
+
+"""
+            
+            # Add basic comparison info
+            for symbol in symbols:
+                if symbol in analyses:
+                    analysis = analyses[symbol]
+                    price_color = "#10B981" if analysis['change'] > 0 else "#EF4444"
+                    result_content += f"""
+**{symbol}** - {analysis["info"].get("longName", symbol)[:40]}
+- Price: ${analysis['price']:.2f} (<span style="color: {price_color}">{analysis['change']:+.2f}%</span>)
+- Sector: {analysis["info"].get("sector", "Unknown")}
+
+"""
+        
+        elif update["type"] == "screening":
+            screen = update["content"]
+            criteria = screen["criteria"]
+            results = screen["results"]
+            total_screened = screen["total_screened"]
+            matches_found = screen["matches_found"]
+            
+            result_content = f"""
+## 🔍 Stock Screening Results
+
+### 📊 Screening Summary
+- **Criteria**: {criteria.get('original_text', 'Custom screening')}
+- **Stocks Screened**: {total_screened}
+- **Matches Found**: {matches_found}
+
+### 📋 Top Results
+"""
+            
+            if results:
+                for i, stock in enumerate(results[:10]):  # Show top 10 results
+                    result_content += f"""
+**{i+1}. {stock['symbol']}** - {stock.get('name', stock['symbol'])[:30]}
+- Price: ${stock.get('price', 0):.2f} | Sector: {stock.get('sector', 'Unknown')}
+- P/E: {stock.get('pe_ratio', 'N/A')} | Market Cap: ${(stock.get('market_cap', 0) or 0)/1e9:.1f}B
+
+"""
+            else:
+                result_content += "\n❌ No stocks found matching your criteria. Try adjusting the parameters.\n"
+            
+        elif update["type"] == "chart":
+            chart_data = update["content"]
+            
+        elif update["type"] == "complete":
+            # Final update - clear streaming container and add final message
+            streaming_container.empty()
+            
+            final_message = {
+                "role": "assistant",
+                "content": result_content
+            }
+            
+            if chart_data:
+                final_message["chart"] = chart_data
+            
+            st.session_state.messages.append(final_message)
+            st.rerun()
+            
+        elif update["type"] == "error":
+            streaming_container.markdown(f"""
+            <div class="ai-message">
+                <strong>🤖 TERMINAL:</strong><br/>
+                {update["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": update["content"]
+            })
+            time.sleep(2)
+            st.rerun()
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; padding: 1rem;'>
+    <p><strong>📈 US Stock Terminal Pro</strong> - For educational purposes only. Not financial advice.</p>
+</div>
+""", unsafe_allow_html=True)
