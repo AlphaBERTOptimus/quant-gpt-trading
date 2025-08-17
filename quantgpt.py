@@ -360,6 +360,9 @@ def main():
         st.session_state.messages = []
     if "analyzer" not in st.session_state:
         st.session_state.analyzer = StockAnalyzer()
+    # 初始化输入状态
+    if "input" not in st.session_state:
+        st.session_state.input = ""
     
     # 界面头部
     st.markdown("""
@@ -404,14 +407,20 @@ def main():
         with col2:
             if st.form_submit_button("🗑️ Clear"):
                 st.session_state.messages = []
-                st.rerun()
+                st.session_state.input = ""
+                st.experimental_rerun()
     
-    # 处理表单提交
-    if submit_button or user_input:
-        if user_input.strip():
-            # 添加用户消息 - 修改为TRADER
+    # 处理表单提交 - 避免重复处理相同命令
+    if (submit_button or user_input) and user_input.strip():
+        # 检查是否重复命令
+        last_command = st.session_state.get("last_command", "")
+        if user_input != last_command:
+            st.session_state.last_command = user_input
+            # 添加用户消息
             st.session_state.messages.append({"role": "trader", "content": user_input})
             process_command(user_input)
+        else:
+            st.session_state.last_command = ""
 
 def process_command(command: str):
     """Process user command and display results"""
@@ -428,7 +437,9 @@ def process_command(command: str):
                 "content": f"Analysis for {data['symbol']}: Price ${data['price']:.2f}, Change {data['change']:.2f}%, PE {data['pe']}, RSI {data['rsi']:.1f}",
                 "chart": data["chart"]
             })
-            st.rerun()
+            # 清除输入并刷新
+            st.session_state.input = ""
+            st.experimental_rerun()
         elif response["type"] == "screening":
             results = response["content"]["results"]
             st.session_state.messages.append({
@@ -436,7 +447,9 @@ def process_command(command: str):
                 "content": f"Found {len(results)} stocks matching criteria",
                 "results": results
             })
-            st.rerun()
+            # 清除输入并刷新
+            st.session_state.input = ""
+            st.experimental_rerun()
         elif response["type"] == "comparison":
             results = response["content"]["results"]
             st.session_state.messages.append({
@@ -444,7 +457,9 @@ def process_command(command: str):
                 "content": f"Comparison of {len(results)} stocks",
                 "results": results
             })
-            st.rerun()
+            # 清除输入并刷新
+            st.session_state.input = ""
+            st.experimental_rerun()
         elif response["type"] == "check_all":
             results = response["content"]["results"]
             st.session_state.messages.append({
@@ -452,7 +467,9 @@ def process_command(command: str):
                 "content": f"Found {len(results)} stocks starting with {response['content']['prefix']}",
                 "results": results
             })
-            st.rerun()
+            # 清除输入并刷新
+            st.session_state.input = ""
+            st.experimental_rerun()
         elif response["type"] == "multiple_analysis":
             results = response["content"]["results"]
             st.session_state.messages.append({
@@ -460,10 +477,18 @@ def process_command(command: str):
                 "content": f"Analysis of {len(results)} stocks",
                 "results": results
             })
-            st.rerun()
+            # 清除输入并刷新
+            st.session_state.input = ""
+            st.experimental_rerun()
         elif response["type"] == "error":
             st.session_state.messages.append({"role": "assistant", "content": response["content"]})
-            st.rerun()
+            # 清除输入并刷新
+            st.session_state.input = ""
+            st.experimental_rerun()
+    
+    # 在命令处理结束后确保清除输入
+    st.session_state.input = ""
+    st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
