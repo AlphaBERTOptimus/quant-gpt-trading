@@ -252,11 +252,72 @@ def get_theme_css(theme="dark"):
         letter-spacing: 0.05em;
     }}
     
+    /* Professional Footer */
+    .professional-footer {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--bg-accent);
+        border-radius: 8px;
+        padding: 2rem;
+        margin: 2rem 0;
+        text-align: center;
+        color: var(--text-secondary);
+        font-family: 'Inter', sans-serif;
+    }}
+    
+    .footer-title {{
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }}
+    
+    .footer-subtitle {{
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+        color: var(--text-secondary);
+    }}
+    
+    .footer-stats {{
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        flex-wrap: wrap;
+        margin: 1.5rem 0;
+    }}
+    
+    .footer-stat {{
+        font-size: 0.85rem;
+        color: var(--accent-color);
+    }}
+    
+    .footer-commands {{
+        margin: 1rem 0;
+        font-size: 0.8rem;
+        line-height: 1.5;
+    }}
+    
+    .footer-disclaimer {{
+        font-size: 0.75rem;
+        margin-top: 1.5rem;
+        opacity: 0.7;
+    }}
+    
+    /* Code styling */
+    code {{
+        background: var(--bg-accent);
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85em;
+        color: var(--accent-color);
+    }}
+    
     /* Responsive */
     @media (max-width: 768px) {{
         .terminal-header {{ padding: 1rem; }}
         .status-bar {{ flex-direction: column; gap: 1rem; }}
         .quick-action {{ margin: 0.25rem; }}
+        .footer-stats {{ flex-direction: column; gap: 1rem; }}
     }}
 </style>
 """
@@ -268,6 +329,10 @@ class CommandParser:
     def parse_command(text: str) -> Dict:
         """Parse user command and extract symbols and action"""
         text = text.upper().strip()
+        
+        # Check for screening commands first
+        if any(word in text for word in ['SCREEN', 'FIND', 'SEARCH', 'FILTER', 'LIST']):
+            return CommandParser._parse_screen_command(text)
         
         # Stock symbol pattern (1-5 letters, optionally followed by numbers)
         symbol_pattern = r'\b[A-Z]{1,5}(?:\d{0,2})?\b'
@@ -285,10 +350,6 @@ class CommandParser:
                         'GROWTH', 'VALUE', 'BLUE', 'CHIP'}
         
         symbols = [s for s in potential_symbols if s not in command_words]
-        
-        # Check for screening commands
-        if any(word in text for word in ['SCREEN', 'FIND', 'SEARCH', 'FILTER', 'LIST']):
-            return CommandParser._parse_screen_command(text)
         
         # Determine action type
         if any(word in text for word in ['COMPARE', 'VS', 'VERSUS', 'AGAINST']):
@@ -334,7 +395,8 @@ class CommandParser:
                     'indicator': indicator,
                     'operator': operator,
                     'value': value,
-                    'original_text': text
+                    'original_text': text,
+                    'symbols': []  # 添加空的symbols列表
                 }
         
         # Screen for predefined categories
@@ -342,37 +404,43 @@ class CommandParser:
             return {
                 'action': 'screen',
                 'type': 'dividend',
-                'original_text': text
+                'original_text': text,
+                'symbols': []
             }
         elif any(word in text for word in ['GROWTH', 'HIGH GROWTH']):
             return {
                 'action': 'screen',
                 'type': 'growth',
-                'original_text': text
+                'original_text': text,
+                'symbols': []
             }
         elif any(word in text for word in ['VALUE', 'UNDERVALUED', 'CHEAP']):
             return {
                 'action': 'screen',
                 'type': 'value',
-                'original_text': text
+                'original_text': text,
+                'symbols': []
             }
         elif any(word in text for word in ['BLUE CHIP', 'LARGE CAP', 'BIG CAP']):
             return {
                 'action': 'screen',
                 'type': 'blue_chip',
-                'original_text': text
+                'original_text': text,
+                'symbols': []
             }
         elif any(word in text for word in ['SMALL CAP', 'SMALLCAP']):
             return {
                 'action': 'screen',
                 'type': 'small_cap',
-                'original_text': text
+                'original_text': text,
+                'symbols': []
             }
         else:
             return {
                 'action': 'screen',
                 'type': 'all',
-                'original_text': text
+                'original_text': text,
+                'symbols': []
             }
     
     @staticmethod
@@ -405,7 +473,13 @@ class StreamingAnalyzer:
             "content": f"🔍 Processing command: {parsed['original_text']}"
         }
         
-        if not parsed['symbols']:
+        # 检查是否是屏幕命令
+        if parsed['action'] == 'screen':
+            yield from self.stream_screening(parsed)
+            return
+        
+        # 检查普通分析命令是否有有效符号
+        if not parsed.get('symbols'):
             yield {
                 "type": "error",
                 "content": "❌ No valid stock symbols found. Please enter symbols like: AAPL, GOOGL, TSLA, NVDA"
@@ -433,8 +507,6 @@ class StreamingAnalyzer:
         # Route to appropriate analysis
         if parsed['action'] == 'compare' and len(valid_symbols) >= 2:
             yield from self.stream_comparison(valid_symbols[:2])
-        elif parsed['action'] == 'screen':
-            yield from self.stream_screening(parsed)
         else:
             # Single symbol analysis
             yield from self.stream_analysis(valid_symbols[0])
@@ -757,7 +829,6 @@ class StreamingAnalyzer:
         else:
             # Custom or default sort by market cap
             return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
-        """Stream analysis results progressively"""
         
     def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
         """Stream analysis results progressively"""
@@ -1405,193 +1476,4 @@ if execute_btn and user_input.strip():
 
 """
             if insights.get("target_price"):
-                result_content += f"**Target Price:** ${insights['target_price']:.2f}\n\n"
-            
-            # Add signals
-            if insights.get("signals"):
-                result_content += "**Key Signals:**\n"
-                for signal in insights["signals"]:
-                    emoji = "🟢" if signal["type"] == "bullish" else "🔴"
-                    result_content += f"- {emoji} {signal['message']}\n"
-                result_content += "\n"
-        
-        elif update["type"] == "comparison":
-            comp = update["content"]
-            symbols = comp["symbols"]
-            analyses = comp["analyses"]
-            
-            result_content = f"""
-## ⚖️ Comparison Analysis: {symbols[0]} vs {symbols[1]}
-
-### 📊 Overview
-"""
-            
-            # Add basic comparison info
-            for symbol in symbols:
-                if symbol in analyses:
-                    analysis = analyses[symbol]
-                    price_color = "#10B981" if analysis['change'] > 0 else "#EF4444"
-                    result_content += f"""
-**{symbol}** - {analysis["info"].get("longName", symbol)[:40]}
-- Price: ${analysis['price']:.2f} (<span style="color: {price_color}">{analysis['change']:+.2f}%</span>)
-- Sector: {analysis["info"].get("sector", "Unknown")}
-
-"""
-            
-            # Create comparison table
-            comp_data = []
-            for symbol in symbols:
-                if symbol in analyses:
-                    analysis = analyses[symbol]
-                    comp_data.append({
-                        "Symbol": symbol,
-                        "Company": analysis["info"].get("longName", symbol)[:25] + "..." if len(analysis["info"].get("longName", symbol)) > 25 else analysis["info"].get("longName", symbol),
-                        "Price": f"${analysis['price']:.2f}",
-                        "Change %": f"{analysis['change']:+.2f}%",
-                        "P/E Ratio": f"{analysis['fundamental'].get('pe_ratio', 0):.1f}" if analysis['fundamental'].get('pe_ratio') else 'N/A',
-                        "Market Cap": f"${(analysis['fundamental'].get('market_cap', 0) or 0)/1e9:.1f}B" if analysis['fundamental'].get('market_cap') else 'N/A',
-                        "RSI": f"{analysis['technical'].get('rsi', 0):.1f}" if analysis['technical'].get('rsi') else 'N/A',
-                        "ROE": f"{(analysis['fundamental'].get('roe', 0) or 0)*100:.1f}%" if analysis['fundamental'].get('roe') else 'N/A'
-                    })
-            
-            if comp_data:
-                comparison_table = pd.DataFrame(comp_data)
-                
-            # Add simple comparison insights
-            if len(comp_data) == 2:
-                stock1, stock2 = comp_data[0], comp_data[1]
-                result_content += f"""
-### 🎯 Quick Comparison
-"""
-                
-                # Price comparison
-                price1 = float(stock1["Price"].replace("$", ""))
-                price2 = float(stock2["Price"].replace("$", ""))
-                if price1 > price2:
-                    result_content += f"- **Higher Price**: {stock1['Symbol']} (${price1:.2f}) vs {stock2['Symbol']} (${price2:.2f})\n"
-                else:
-                    result_content += f"- **Higher Price**: {stock2['Symbol']} (${price2:.2f}) vs {stock1['Symbol']} (${price1:.2f})\n"
-                
-                # Market cap comparison
-                if stock1["Market Cap"] != 'N/A' and stock2["Market Cap"] != 'N/A':
-                    cap1 = float(stock1["Market Cap"].replace("$", "").replace("B", ""))
-                    cap2 = float(stock2["Market Cap"].replace("$", "").replace("B", ""))
-                    larger_cap = stock1['Symbol'] if cap1 > cap2 else stock2['Symbol']
-                    result_content += f"- **Larger Market Cap**: {larger_cap}\n"
-                
-                # P/E comparison
-                if stock1["P/E Ratio"] != 'N/A' and stock2["P/E Ratio"] != 'N/A':
-                    pe1 = float(stock1["P/E Ratio"])
-                    pe2 = float(stock2["P/E Ratio"])
-                    lower_pe = stock1['Symbol'] if pe1 < pe2 else stock2['Symbol']
-                    result_content += f"- **Lower P/E (Better Value)**: {lower_pe}\n"
-        
-        elif update["type"] == "screening":
-            screen = update["content"]
-            criteria = screen["criteria"]
-            results = screen["results"]
-            total_screened = screen["total_screened"]
-            matches_found = screen["matches_found"]
-            
-            result_content = f"""
-## 🔍 Stock Screening Results
-
-### 📊 Screening Summary
-- **Criteria**: {criteria.get('original_text', 'Custom screening')}
-- **Stocks Screened**: {total_screened}
-- **Matches Found**: {matches_found}
-
-### 📋 Top Results
-"""
-            
-            if results:
-                # Create screening results table
-                screen_data = []
-                for i, stock in enumerate(results[:25]):  # Show top 25 results
-                    screen_data.append({
-                        "Rank": i + 1,
-                        "Symbol": stock['symbol'],
-                        "Company": stock.get('name', stock['symbol'])[:25],
-                        "Sector": stock.get('sector', 'Unknown')[:15],
-                        "Price": f"${stock.get('price', 0):.2f}",
-                        "Change %": f"{stock.get('change', 0):+.2f}%",
-                        "P/E": f"{stock.get('pe_ratio', 0):.1f}" if stock.get('pe_ratio') and stock.get('pe_ratio') > 0 else 'N/A',
-                        "P/B": f"{stock.get('pb_ratio', 0):.1f}" if stock.get('pb_ratio') and stock.get('pb_ratio') > 0 else 'N/A',
-                        "ROE": f"{(stock.get('roe', 0) or 0)*100:.1f}%" if stock.get('roe') else 'N/A',
-                        "Div %": f"{(stock.get('dividend_yield', 0) or 0)*100:.1f}%" if stock.get('dividend_yield') else 'N/A',
-                        "Market Cap": f"${(stock.get('market_cap', 0) or 0)/1e9:.1f}B" if stock.get('market_cap') else 'N/A',
-                        "RSI": f"{stock.get('rsi', 0):.0f}" if stock.get('rsi') else 'N/A'
-                    })
-                
-                comparison_table = pd.DataFrame(screen_data)
-                
-                if matches_found > 25:
-                    result_content += f"\n*Showing top 25 results out of {matches_found} matches*\n"
-            else:
-                result_content += "\n❌ No stocks found matching your criteria. Try adjusting the parameters.\n"
-            
-        elif update["type"] == "chart":
-            chart_data = update["content"]
-            
-        elif update["type"] == "complete":
-            # Final update - clear streaming container and add final message
-            streaming_container.empty()
-            
-            final_message = {
-                "role": "assistant",
-                "content": result_content
-            }
-            
-            if chart_data:
-                final_message["chart"] = chart_data
-            if technical_table is not None:
-                final_message["technical_table"] = technical_table
-            if fundamental_table is not None:
-                final_message["fundamental_table"] = fundamental_table
-            if comparison_table is not None:
-                final_message["comparison_table"] = comparison_table
-            
-            st.session_state.messages.append(final_message)
-            st.rerun()
-            
-        elif update["type"] == "error":
-            streaming_container.markdown(f"""
-            <div class="ai-message">
-                <strong>🤖 TERMINAL:</strong><br/>
-                {update["content"]}
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": update["content"]
-            })
-            time.sleep(2)
-            st.rerun()
-
-# Professional Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: var(--text-secondary); padding: 2rem; font-family: "Inter", sans-serif;'>
-    <p><strong>📈 US Stock Terminal Pro v2.0</strong></p>
-    <p>Advanced Stock Screening • Real-time Analysis • AI-Powered Insights • Professional Comparison Tools</p>
-    
-    <div style='margin: 1.5rem 0; display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;'>
-        <span>🔍 <strong>150+</strong> Stocks</span>
-        <span>📊 <strong>8+</strong> Screening Criteria</span>
-        <span>⚡ <strong>Real-time</strong> Data</span>
-        <span>🤖 <strong>AI</strong> Analysis</span>
-    </div>
-    
-    <div style='margin: 1rem 0; font-size: 0.8rem;'>
-        <strong>Supported Commands:</strong><br/>
-        Analysis: <code>AAPL</code>, <code>analyze NVDA</code> | 
-        Comparison: <code>compare AAPL vs GOOGL</code> | 
-        Screening: <code>screen PE &lt; 20</code>, <code>find dividend stocks</code>
-    </div>
-    
-    <p style="font-size: 0.75rem; margin-top: 1.5rem; opacity: 0.7;">
-        ⚠️ For educational and research purposes only. Not financial advice. Always do your own research.
-    </p>
-</div>
-""", unsafe_allow_html=True)
+                result_content += f"**Target Price:** ${insights['target_price']:.2f
