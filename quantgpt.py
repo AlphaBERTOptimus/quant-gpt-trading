@@ -1411,7 +1411,7 @@ for message in st.session_state.messages:
         
         # Display chart if present
         if "chart" in message:
-            st.plotly_chart(message["chart"], use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(message["chart"], use_container_width=True, config={'displayModeBar': False}, key=f"main_chart_{hash(str(message['chart']))}")
         
         # Display tables if present
         if "technical_table" in message:
@@ -1516,8 +1516,8 @@ for message in st.session_state.messages:
                     plot_bgcolor='rgba(0,0,0,0)'
                 )
                 
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"backtest_chart_{results['strategy']}_{len(st.session_state.messages)}")
+                
 # Input section
 st.markdown("### 💬 Terminal Input")
 
