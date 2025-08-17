@@ -252,11 +252,55 @@ def get_theme_css(theme="dark"):
         letter-spacing: 0.05em;
     }}
     
+    /* Footer */
+    .terminal-footer {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--bg-accent);
+        border-radius: 6px;
+        padding: 2rem;
+        margin: 2rem 0;
+        text-align: center;
+        color: var(--text-secondary);
+        font-family: 'Inter', sans-serif;
+    }}
+    
+    .footer-title {{
+        color: var(--text-primary);
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }}
+    
+    .footer-features {{
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin: 1.5rem 0;
+        flex-wrap: wrap;
+    }}
+    
+    .footer-feature {{
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }}
+    
+    .footer-commands {{
+        margin: 1rem 0;
+        font-size: 0.8rem;
+        line-height: 1.6;
+    }}
+    
+    .footer-disclaimer {{
+        font-size: 0.75rem;
+        margin-top: 1.5rem;
+        opacity: 0.7;
+    }}
+    
     /* Responsive */
     @media (max-width: 768px) {{
         .terminal-header {{ padding: 1rem; }}
         .status-bar {{ flex-direction: column; gap: 1rem; }}
         .quick-action {{ margin: 0.25rem; }}
+        .footer-features {{ flex-direction: column; gap: 1rem; }}
     }}
 </style>
 """
@@ -757,7 +801,6 @@ class StreamingAnalyzer:
         else:
             # Custom or default sort by market cap
             return sorted(results, key=lambda x: x.get('market_cap', 0) or 0, reverse=True)
-        """Stream analysis results progressively"""
         
     def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
         """Stream analysis results progressively"""
@@ -1572,26 +1615,26 @@ if execute_btn and user_input.strip():
 # Professional Footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: var(--text-secondary); padding: 2rem; font-family: "Inter", sans-serif;'>
-    <p><strong>📈 US Stock Terminal Pro v2.0</strong></p>
+<div class="terminal-footer">
+    <div class="footer-title">📈 US Stock Terminal Pro v2.0</div>
     <p>Advanced Stock Screening • Real-time Analysis • AI-Powered Insights • Professional Comparison Tools</p>
     
-    <div style='margin: 1.5rem 0; display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;'>
-        <span>🔍 <strong>150+</strong> Stocks</span>
-        <span>📊 <strong>8+</strong> Screening Criteria</span>
-        <span>⚡ <strong>Real-time</strong> Data</span>
-        <span>🤖 <strong>AI</strong> Analysis</span>
+    <div class="footer-features">
+        <div class="footer-feature">🔍 <strong>150+</strong> Stocks</div>
+        <div class="footer-feature">📊 <strong>8+</strong> Screening Criteria</div>
+        <div class="footer-feature">⚡ <strong>Real-time</strong> Data</div>
+        <div class="footer-feature">🤖 <strong>AI</strong> Analysis</div>
     </div>
     
-    <div style='margin: 1rem 0; font-size: 0.8rem;'>
+    <div class="footer-commands">
         <strong>Supported Commands:</strong><br/>
         Analysis: <code>AAPL</code>, <code>analyze NVDA</code> | 
         Comparison: <code>compare AAPL vs GOOGL</code> | 
         Screening: <code>screen PE &lt; 20</code>, <code>find dividend stocks</code>
     </div>
     
-    <p style="font-size: 0.75rem; margin-top: 1.5rem; opacity: 0.7;">
+    <div class="footer-disclaimer">
         ⚠️ For educational and research purposes only. Not financial advice. Always do your own research.
-    </p>
+    </div>
 </div>
 """, unsafe_allow_html=True)
