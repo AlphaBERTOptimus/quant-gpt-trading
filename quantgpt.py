@@ -1,4 +1,81 @@
-elif criteria_type == 'blue_chip':
+if criteria_type == 'custom':
+            indicator = criteria.get('indicator', '').upper()
+            operator = criteria.get('operator', '>')
+            value = criteria.get('value', 0)
+            
+            if indicator in ['PE', 'P/E']:
+                pe = stock_data.get('pe_ratio')
+                if pe is None or pe <= 0:
+                    return False
+                if operator == '<': return pe < value
+                elif operator == '>': return pe > value
+                elif operator == '=': return abs(pe - value) < 0.5
+                
+            elif indicator in ['PB', 'P/B']:
+                pb = stock_data.get('pb_ratio')
+                if pb is None or pb <= 0:
+                    return False
+                if operator == '<': return pb < value
+                elif operator == '>': return pb > value
+                elif operator == '=': return abs(pb - value) < 0.1
+                
+            elif indicator == 'ROE':
+                roe = stock_data.get('roe')
+                if roe is None:
+                    return False
+                roe_percent = roe * 100
+                if operator == '<': return roe_percent < value
+                elif operator == '>': return roe_percent > value
+                elif operator == '=': return abs(roe_percent - value) < 1
+                
+            elif indicator in ['DEBT', 'DEBT/EQUITY', 'DEBT-TO-EQUITY']:
+                debt_eq = stock_data.get('debt_to_equity')
+                if debt_eq is None:
+                    return False
+                if operator == '<': return debt_eq < value
+                elif operator == '>': return debt_eq > value
+                elif operator == '=': return abs(debt_eq - value) < 0.1
+                
+            elif indicator in ['DIVIDEND', 'DIV', 'YIELD']:
+                div_yield = stock_data.get('dividend_yield')
+                if div_yield is None:
+                    return False
+                div_percent = div_yield * 100
+                if operator == '<': return div_percent < value
+                elif operator == '>': return div_percent > value
+                elif operator == '=': return abs(div_percent - value) < 0.1
+                
+            elif indicator == 'RSI':
+                rsi = stock_data.get('rsi')
+                if rsi is None:
+                    return False
+                if operator == '<': return rsi < value
+                elif operator == '>': return rsi > value
+                elif operator == '=': return abs(rsi - value) < 2
+                
+            elif indicator == 'PRICE':
+                price = stock_data.get('price')
+                if price is None:
+                    return False
+                if operator == '<': return price < value
+                elif operator == '>': return price > value
+                elif operator == '=': return abs(price - value) < 1
+        
+        elif criteria_type == 'dividend':
+            div_yield = stock_data.get('dividend_yield')
+            return div_yield and div_yield > 0.03  # > 3%
+            
+        elif criteria_type == 'growth':
+            revenue_growth = stock_data.get('revenue_growth')
+            roe = stock_data.get('roe')
+            return (revenue_growth and revenue_growth > 0.15) or (roe and roe > 0.2)
+            
+        elif criteria_type == 'value':
+            pe = stock_data.get('pe_ratio')
+            pb = stock_data.get('pb_ratio')
+            return (pe and 5 < pe < 20) and (pb and pb < 3)
+            
+        elif criteria_type == 'blue_chip':
             market_cap = stock_data.get('market_cap')
             return market_cap and market_cap > 10e9  # > $10B
             
