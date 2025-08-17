@@ -8,7 +8,7 @@ import re
 import time
 from typing import Dict, List, Generator, Any
 
-# 精简版主题配置
+# 修复输入框文本颜色问题
 def get_theme_css():
     return """
 <style>
@@ -25,6 +25,11 @@ def get_theme_css():
     .user-message { background: var(--bg-secondary); padding: 1rem; margin: 0.5rem 0; border-radius: 6px; border-left: 3px solid var(--accent-color); }
     .ai-message { background: var(--bg-secondary); padding: 1rem; margin: 0.5rem 0; border-radius: 6px; border-left: 3px solid var(--success-color); }
     .stButton>button { background: var(--accent-color); color: white; border-radius: 6px; }
+    
+    /* 修复输入框文本颜色 */
+    .stTextInput>div>div>input {
+        color: var(--text-primary) !important;
+    }
 </style>
 """
 
@@ -362,8 +367,8 @@ def main():
     
     # 显示消息历史
     for msg in st.session_state.messages:
-        if msg["role"] == "user":
-            st.markdown(f'<div class="user-message"><b>USER:</b> {msg["content"]}</div>', unsafe_allow_html=True)
+        if msg["role"] == "trader":  # 修改为TRADER
+            st.markdown(f'<div class="user-message"><b>TRADER:</b> {msg["content"]}</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="ai-message"><b>TERMINAL:</b> {msg["content"]}</div>', unsafe_allow_html=True)
             if "chart" in msg:
@@ -371,18 +376,27 @@ def main():
             if "results" in msg:
                 st.dataframe(pd.DataFrame(msg["results"]))
     
-    # 输入区域
-    user_input = st.text_input("Command (e.g., AAPL, screen PE<20, compare AAPL MSFT, TECH*)", key="input")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Execute", type="primary"):
-            if user_input.strip():
-                st.session_state.messages.append({"role": "user", "content": user_input})
-                process_command(user_input)
-    with col2:
-        if st.button("Clear"):
-            st.session_state.messages = []
-            st.rerun()
+    # 输入区域 - 添加回车键支持
+    with st.form(key='command_form'):
+        user_input = st.text_input(
+            "Command (e.g., AAPL, screen PE<20, compare AAPL MSFT, TECH*)", 
+            key="input",
+            help="Press Enter to execute command"
+        )
+        col1, col2 = st.columns(2)
+        with col1:
+            submit_button = st.form_submit_button("🚀 Execute")
+        with col2:
+            if st.form_submit_button("🗑️ Clear"):
+                st.session_state.messages = []
+                st.rerun()
+    
+    # 处理表单提交
+    if submit_button or user_input:
+        if user_input.strip():
+            # 添加用户消息 - 修改为TRADER
+            st.session_state.messages.append({"role": "trader", "content": user_input})
+            process_command(user_input)
 
 def process_command(command: str):
     """Process user command and display results"""
