@@ -1,4 +1,21 @@
-import streamlit as st
+elif update["type"] == "insights":
+            insights = update["content"]
+            result_content += f"""
+### 🎯 AI Insights
+
+**Recommendation:** {insights["recommendation"]} | **Confidence:** {insights["confidence"]:.1%} | **Risk Level:** {insights["risk_level"]}
+
+"""
+            if insights.get("target_price"):
+                result_content += f"**Target Price:** ${insights['target_price']:.2f}\n\n"
+            
+            # Add signals
+            if insights.get("signals"):
+                result_content += "**Key Signals:**\n"
+                for signal in insights["signals"]:
+                    emoji = "🟢" if signal["type"] == "bullish" else "🔴"
+                    result_content += f"- {emoji} {signal['message']}\n"
+                result_content += "\n"import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
