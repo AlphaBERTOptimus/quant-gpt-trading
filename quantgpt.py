@@ -123,12 +123,40 @@ def process_command(command: str):
             container.markdown(f'<div class="ai-message">{response["content"]}</div>', unsafe_allow_html=True)
         elif response["type"] == "analysis":
             # 处理单个股票分析
+            data = response["content"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Analysis for {data['symbol']}: Price ${data['price']:.2f}, Change {data['change']:.2f}%, PE {data['pe']}, RSI {data['rsi']:.1f}",
+                "chart": data["chart"]
+            })
+            st.rerun()
         elif response["type"] == "screening":
             # 处理筛选结果
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Found {len(results)} stocks matching criteria",
+                "results": results
+            })
+            st.rerun()
         elif response["type"] == "comparison":
             # 处理比较结果
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Comparison of {len(results)} stocks",
+                "results": results
+            })
+            st.rerun()
         elif response["type"] == "check_all":
             # 处理前缀搜索
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Found {len(results)} stocks starting with {response['content']['prefix']}",
+                "results": results
+            })
+            st.rerun()
         elif response["type"] == "multiple_analysis":  # 添加对新类型的处理
             results = response["content"]["results"]
             st.session_state.messages.append({
