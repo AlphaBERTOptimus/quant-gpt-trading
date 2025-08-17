@@ -60,6 +60,8 @@ if criteria_type == 'custom':
                 if operator == '<': return price < value
                 elif operator == '>': return price > value
                 elif operator == '=': return abs(price - value) < 1
+            
+            return False  # If no custom criteria matched
         
         elif criteria_type == 'dividend':
             div_yield = stock_data.get('dividend_yield')
