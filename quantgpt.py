@@ -59,24 +59,87 @@ class StockAnalyzer:
     def __init__(self):
         self.parser = CommandParser()
         self.stock_db = StockDatabase()
-    
-    def process_command(self, text: str) -> Generator[Dict, None, None]:
-        parsed = self.parser.parse_command(text)
-        yield {"type": "status", "content": f"Processing: {text}"}
         
-        if parsed['action'] == 'screen':
-            yield from self.screen_stocks(parsed['params'])
-        elif parsed['action'] == 'compare' and len(parsed['symbols']) >= 2:
-            yield from self.compare_stocks(parsed['symbols'])
-        elif parsed['action'] == 'check_all':
-            yield from self.check_all_stocks(parsed['params'])
-        elif parsed['symbols']:
-            if len(parsed['symbols']) == 1:
-                yield from self.analyze_stock(parsed['symbols'][0])
-            else:
-                yield from self.analyze_multiple(parsed['symbols'])
+        # 添加缺失的 analyze_multiple_stocks 方法
+    def analyze_multiple_stocks(self, symbols: List[str]) -> Generator[Dict, None, None]:
+        """Analyze multiple stocks"""
+        yield {
+            "type": "status",
+            "content": f"📊 Analyzing {len(symbols)} stocks: {', '.join(symbols)}"
+        }
+        
+        results = []
+        for i, symbol in enumerate(symbols):
+            yield {
+                "type": "status",
+                "content": f"🔄 Analyzing {symbol} ({i+1}/{len(symbols)})..."
+            }
+            
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period="1y")
+                info = ticker.info
+                
+                if not data.empty:
+                    price = data['Close'].iloc[-1]
+                    change = ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
+                    pe = info.get('trailingPE', 'N/A')
+                    market_cap = f"${info.get('marketCap', 0)/1e9:.1f}B" if info.get('marketCap') else 'N/A'
+                    
+                    results.append({
+                        'symbol': symbol,
+                        'name': info.get('longName', symbol)[:40],
+                        'price': price,
+                        'change': change,
+                        'pe': pe,
+                        'market_cap': market_cap
+                    })
+            except Exception as e:
+                yield {
+                    "type": "status",
+                    "content": f"⚠️ Could not analyze {symbol}: {str(e)}"
+                }
+                continue
+        
+        if results:
+            yield {
+                "type": "multiple_analysis",
+                "content": {
+                    'results': results,
+                    'symbols': symbols
+                }
+            }
         else:
-            yield {"type": "error", "content": "Invalid command"}
+            yield {
+                "type": "error",
+                "content": "❌ Could not analyze any of the provided symbols"
+            }
+def process_command(command: str):
+    analyzer = st.session_state.analyzer
+    container = st.empty()
+    
+    for response in analyzer.process_command(command):
+        if response["type"] == "status":
+            container.markdown(f'<div class="ai-message">{response["content"]}</div>', unsafe_allow_html=True)
+        elif response["type"] == "analysis":
+            # 处理单个股票分析
+        elif response["type"] == "screening":
+            # 处理筛选结果
+        elif response["type"] == "comparison":
+            # 处理比较结果
+        elif response["type"] == "check_all":
+            # 处理前缀搜索
+        elif response["type"] == "multiple_analysis":  # 添加对新类型的处理
+            results = response["content"]["results"]
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"Analysis of {len(results)} stocks",
+                "results": results
+            })
+            st.rerun()
+        elif response["type"] == "error":
+            st.session_state.messages.append({"role": "assistant", "content": response["content"]})
+            st.rerun()
 
     def analyze_stock(self, symbol: str) -> Generator[Dict, None, None]:
         try:
