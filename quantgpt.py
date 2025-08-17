@@ -1505,7 +1505,7 @@ for message in st.session_state.messages:
                             mode='markers',
                             marker=dict(color='green', size=10, symbol='triangle-up'),
                             name='Buy Signals'
-                
+                 ))  # 添加了右括号和逗号
                 fig.update_layout(
                     title=f"Strategy Performance: {results['strategy']}",
                     xaxis_title="Date",
