@@ -261,362 +261,6 @@ def get_theme_css(theme="dark"):
 </style>
 """
 
-class StockUniverse:
-    """Manage universe of US stocks"""
-    
-    @staticmethod
-    @st.cache_data(ttl=3600)  # Cache for 1 hour
-    def get_sp500_symbols():
-        """Get S&P 500 symbols"""
-        try:
-            url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-            tables = pd.read_html(url)
-            return tables[0]['Symbol'].tolist()
-        except:
-            # Fallback list of major stocks
-            return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'JPM', 'JNJ', 'V',
-                    'UNH', 'HD', 'PG', 'BAC', 'MA', 'DIS', 'ADBE', 'CRM', 'NFLX', 'PYPL',
-                    'INTC', 'CMCSA', 'VZ', 'T', 'PFE', 'WMT', 'KO', 'PEP', 'ABT', 'NKE']
-    
-    @staticmethod
-    @st.cache_data(ttl=3600)
-    def get_nasdaq100_symbols():
-        """Get NASDAQ 100 symbols"""
-        try:
-            url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
-            tables = pd.read_html(url)
-            return tables[4]['Ticker'].tolist()
-        except:
-            return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'NFLX', 'ADBE', 'CRM',
-                    'PYPL', 'INTC', 'QCOM', 'COST', 'AVGO', 'TXN', 'TMUS', 'CHTR', 'SBUX', 'GILD']
-    
-    @staticmethod
-    def get_popular_stocks():
-        """Get list of popular stocks"""
-        return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'NFLX', 'JPM', 'JNJ',
-                'V', 'PG', 'UNH', 'HD', 'BAC', 'MA', 'DIS', 'ADBE', 'CRM', 'PYPL',
-                'INTC', 'CMCSA', 'VZ', 'T', 'PFE', 'WMT', 'KO', 'PEP', 'ABT', 'NKE']
-
-class StockScreener:
-    """Advanced stock screening functionality"""
-    
-    def __init__(self):
-        self.universe = StockUniverse()
-        self.custom_criteria = None
-    
-    def screen_stocks(self, criteria: Dict = None, universe_type: str = "sp500") -> pd.DataFrame:
-        """Screen stocks based on criteria"""
-        
-        # Use custom criteria if provided
-        if self.custom_criteria:
-            criteria = self.custom_criteria
-            self.custom_criteria = None  # Reset after use
-        
-        # Default criteria if none provided
-        if criteria is None:
-            criteria = {
-                'min_price': 10,
-                'max_price': 1000,
-                'min_market_cap': 1,  # 1B+
-                'max_pe': 30,
-                'min_rsi': 20,
-                'max_rsi': 80,
-                'min_1m_return': -50,
-                'min_dividend_yield': 0
-            }
-        
-        # Get stock universe
-        if universe_type == "sp500":
-            symbols = self.universe.get_sp500_symbols()
-        elif universe_type == "nasdaq100":
-            symbols = self.universe.get_nasdaq100_symbols()
-        else:
-            symbols = self.universe.get_popular_stocks()
-        
-        results = []
-        
-        for symbol in symbols[:50]:  # Limit to prevent timeout
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
-                hist = ticker.history(period="1y")
-                
-                if hist.empty:
-                    continue
-                
-                # Calculate metrics
-                current_price = hist['Close'].iloc[-1]
-                
-                # Technical indicators
-                rsi = self._calculate_rsi(hist['Close'])
-                sma_20 = hist['Close'].rolling(20).mean().iloc[-1] if len(hist) >= 20 else None
-                sma_50 = hist['Close'].rolling(50).mean().iloc[-1] if len(hist) >= 50 else None
-                
-                # Price performance
-                price_1m = hist['Close'].iloc[-21] if len(hist) >= 21 else current_price
-                price_3m = hist['Close'].iloc[-63] if len(hist) >= 63 else current_price
-                perf_1m = (current_price - price_1m) / price_1m * 100
-                perf_3m = (current_price - price_3m) / price_3m * 100
-                
-                # Fundamental metrics
-                pe_ratio = info.get('trailingPE')
-                pb_ratio = info.get('priceToBook')
-                roe = info.get('returnOnEquity')
-                debt_to_equity = info.get('debtToEquity')
-                dividend_yield = info.get('dividendYield', 0) or 0
-                market_cap = info.get('marketCap')
-                
-                stock_data = {
-                    'Symbol': symbol,
-                    'Name': info.get('longName', symbol)[:30],
-                    'Sector': info.get('sector', 'Unknown'),
-                    'Price': current_price,
-                    'Market Cap': market_cap,
-                    'P/E': pe_ratio,
-                    'P/B': pb_ratio,
-                    'ROE': roe,
-                    'Debt/Equity': debt_to_equity,
-                    'Div Yield': dividend_yield * 100 if dividend_yield else 0,
-                    'RSI': rsi,
-                    '1M Return': perf_1m,
-                    '3M Return': perf_3m,
-                    'SMA 20': sma_20,
-                    'SMA 50': sma_50
-                }
-                
-                # Apply screening criteria
-                if self._meets_criteria(stock_data, criteria):
-                    results.append(stock_data)
-                    
-            except Exception as e:
-                continue
-        
-        return pd.DataFrame(results)
-    
-    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> float:
-        """Calculate RSI"""
-        if len(prices) < period:
-            return 50.0
-        
-        delta = prices.diff()
-        gain = delta.where(delta > 0, 0).rolling(period).mean()
-        loss = -delta.where(delta < 0, 0).rolling(period).mean()
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-        return rsi.iloc[-1]
-    
-    def _meets_criteria(self, stock_data: Dict, criteria: Dict) -> bool:
-        """Check if stock meets screening criteria"""
-        try:
-            # Price criteria
-            if criteria.get('min_price') and stock_data['Price'] < criteria['min_price']:
-                return False
-            if criteria.get('max_price') and stock_data['Price'] > criteria['max_price']:
-                return False
-            
-            # Market cap criteria
-            if criteria.get('min_market_cap') and stock_data['Market Cap']:
-                if stock_data['Market Cap'] < criteria['min_market_cap'] * 1e9:
-                    return False
-            
-            # P/E criteria
-            if criteria.get('max_pe') and stock_data['P/E']:
-                if stock_data['P/E'] > criteria['max_pe']:
-                    return False
-            
-            # RSI criteria
-            if criteria.get('max_rsi') and stock_data['RSI'] > criteria['max_rsi']:
-                return False
-            if criteria.get('min_rsi') and stock_data['RSI'] < criteria['min_rsi']:
-                return False
-            
-            # Performance criteria
-            if criteria.get('min_1m_return') and stock_data['1M Return'] < criteria['min_1m_return']:
-                return False
-            
-            # Dividend yield criteria
-            if criteria.get('min_dividend_yield') and stock_data['Div Yield'] < criteria['min_dividend_yield']:
-                return False
-            
-            # Sector filter
-            if criteria.get('sectors') and stock_data['Sector'] not in criteria['sectors']:
-                return False
-            
-            return True
-            
-        except:
-            return False
-
-class StrategyBacktester:
-    """Simple strategy backtesting engine"""
-    
-    def __init__(self):
-        pass
-    
-    def backtest_strategy(self, symbol: str, strategy: str, period: str = "1y") -> Dict:
-        """Backtest a simple strategy"""
-        
-        try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period)
-            
-            if data.empty:
-                return {"error": "No data available"}
-            
-            if strategy == "sma_crossover":
-                return self._backtest_sma_crossover(data)
-            elif strategy == "rsi_mean_reversion":
-                return self._backtest_rsi_mean_reversion(data)
-            elif strategy == "momentum":
-                return self._backtest_momentum(data)
-            elif strategy == "buy_and_hold":
-                return self._backtest_buy_and_hold(data)
-            else:
-                return {"error": "Unknown strategy"}
-                
-        except Exception as e:
-            return {"error": str(e)}
-    
-    def _backtest_sma_crossover(self, data: pd.DataFrame) -> Dict:
-        """SMA Crossover Strategy: Buy when SMA20 > SMA50, Sell when SMA20 < SMA50"""
-        
-        data = data.copy()
-        data['SMA_20'] = data['Close'].rolling(20).mean()
-        data['SMA_50'] = data['Close'].rolling(50).mean()
-        
-        # Generate signals
-        data['Signal'] = 0
-        data['Signal'][20:] = np.where(data['SMA_20'][20:] > data['SMA_50'][20:], 1, 0)
-        data['Position'] = data['Signal'].diff()
-        
-        # Calculate returns
-        data['Returns'] = data['Close'].pct_change()
-        data['Strategy_Returns'] = data['Signal'].shift(1) * data['Returns']
-        
-        # Performance metrics
-        total_return = (data['Strategy_Returns'] + 1).prod() - 1
-        buy_hold_return = (data['Returns'] + 1).prod() - 1
-        
-        win_rate = len(data[data['Strategy_Returns'] > 0]) / len(data[data['Strategy_Returns'] != 0]) if len(data[data['Strategy_Returns'] != 0]) > 0 else 0
-        
-        return {
-            'strategy': 'SMA Crossover (20/50)',
-            'total_return': total_return * 100,
-            'buy_hold_return': buy_hold_return * 100,
-            'win_rate': win_rate * 100,
-            'total_trades': len(data[data['Position'] != 0]),
-            'data': data,
-            'signals': data[data['Position'] != 0][['Close', 'Position']].to_dict('records')
-        }
-    
-    def _backtest_rsi_mean_reversion(self, data: pd.DataFrame) -> Dict:
-        """RSI Mean Reversion: Buy when RSI < 30, Sell when RSI > 70"""
-        
-        data = data.copy()
-        
-        # Calculate RSI
-        delta = data['Close'].diff()
-        gain = delta.where(delta > 0, 0).rolling(14).mean()
-        loss = -delta.where(delta < 0, 0).rolling(14).mean()
-        rs = gain / loss
-        data['RSI'] = 100 - (100 / (1 + rs))
-        
-        # Generate signals
-        data['Signal'] = 0
-        data.loc[data['RSI'] < 30, 'Signal'] = 1  # Buy
-        data.loc[data['RSI'] > 70, 'Signal'] = -1  # Sell
-        
-        # Forward fill signals until next signal
-        data['Position'] = 0
-        current_position = 0
-        for i in range(len(data)):
-            if data['Signal'].iloc[i] == 1:
-                current_position = 1
-            elif data['Signal'].iloc[i] == -1:
-                current_position = 0
-            data['Position'].iloc[i] = current_position
-        
-        # Calculate returns
-        data['Returns'] = data['Close'].pct_change()
-        data['Strategy_Returns'] = data['Position'].shift(1) * data['Returns']
-        
-        # Performance metrics
-        total_return = (data['Strategy_Returns'] + 1).prod() - 1
-        buy_hold_return = (data['Returns'] + 1).prod() - 1
-        
-        trades = len(data[data['Signal'] != 0])
-        winning_trades = len(data[(data['Signal'] != 0) & (data['Strategy_Returns'] > 0)])
-        win_rate = winning_trades / trades if trades > 0 else 0
-        
-        return {
-            'strategy': 'RSI Mean Reversion',
-            'total_return': total_return * 100,
-            'buy_hold_return': buy_hold_return * 100,
-            'win_rate': win_rate * 100,
-            'total_trades': trades,
-            'data': data,
-            'signals': data[data['Signal'] != 0][['Close', 'Signal', 'RSI']].to_dict('records')
-        }
-    
-    def _backtest_momentum(self, data: pd.DataFrame) -> Dict:
-        """Momentum Strategy: Buy on 5-day momentum, hold for 10 days"""
-        
-        data = data.copy()
-        data['Momentum'] = data['Close'].pct_change(5)  # 5-day momentum
-        
-        # Generate signals
-        data['Signal'] = 0
-        data.loc[data['Momentum'] > 0.05, 'Signal'] = 1  # Buy on +5% momentum
-        
-        # Hold for 10 days
-        data['Position'] = 0
-        hold_counter = 0
-        for i in range(len(data)):
-            if data['Signal'].iloc[i] == 1:
-                hold_counter = 10
-            
-            if hold_counter > 0:
-                data['Position'].iloc[i] = 1
-                hold_counter -= 1
-        
-        # Calculate returns
-        data['Returns'] = data['Close'].pct_change()
-        data['Strategy_Returns'] = data['Position'].shift(1) * data['Returns']
-        
-        # Performance metrics
-        total_return = (data['Strategy_Returns'] + 1).prod() - 1
-        buy_hold_return = (data['Returns'] + 1).prod() - 1
-        
-        trades = len(data[data['Signal'] == 1])
-        win_rate = 0.6  # Approximate for momentum strategies
-        
-        return {
-            'strategy': 'Momentum (5-day)',
-            'total_return': total_return * 100,
-            'buy_hold_return': buy_hold_return * 100,
-            'win_rate': win_rate * 100,
-            'total_trades': trades,
-            'data': data,
-            'signals': data[data['Signal'] == 1][['Close', 'Momentum']].to_dict('records')
-        }
-    
-    def _backtest_buy_and_hold(self, data: pd.DataFrame) -> Dict:
-        """Buy and Hold Strategy"""
-        
-        data = data.copy()
-        data['Returns'] = data['Close'].pct_change()
-        total_return = (data['Returns'] + 1).prod() - 1
-        
-        return {
-            'strategy': 'Buy and Hold',
-            'total_return': total_return * 100,
-            'buy_hold_return': total_return * 100,
-            'win_rate': 100.0,
-            'total_trades': 1,
-            'data': data,
-            'signals': []
-        }
-
 class CommandParser:
     """Smart command parser for stock analysis"""
     
@@ -624,35 +268,6 @@ class CommandParser:
     def parse_command(text: str) -> Dict:
         """Parse user command and extract symbols and action"""
         text = text.upper().strip()
-        
-        # Check for screening commands
-        if any(word in text for word in ['SCREEN', 'FIND', 'FILTER', 'SEARCH']):
-            return {'action': 'screen', 'original_text': text}
-        
-        # Check for backtest commands
-        if any(word in text for word in ['BACKTEST', 'TEST', 'STRATEGY']):
-            # Extract strategy type
-            strategy = 'sma_crossover'  # default
-            if 'RSI' in text:
-                strategy = 'rsi_mean_reversion'
-            elif 'MOMENTUM' in text:
-                strategy = 'momentum'
-            elif 'BUY' in text and 'HOLD' in text:
-                strategy = 'buy_and_hold'
-            
-            # Extract symbol
-            symbol_pattern = r'\b[A-Z]{1,5}(?:\d{0,2})?\b'
-            potential_symbols = re.findall(symbol_pattern, text)
-            command_words = {'BACKTEST', 'TEST', 'STRATEGY', 'RSI', 'MOMENTUM', 'BUY', 'HOLD',
-                           'SMA', 'CROSSOVER', 'THE', 'ON', 'FOR', 'WITH'}
-            symbols = [s for s in potential_symbols if s not in command_words]
-            
-            return {
-                'action': 'backtest',
-                'strategy': strategy,
-                'symbols': symbols[:1],  # Only first symbol
-                'original_text': text
-            }
         
         # Stock symbol pattern (1-5 letters, optionally followed by numbers)
         symbol_pattern = r'\b[A-Z]{1,5}(?:\d{0,2})?\b'
@@ -702,8 +317,6 @@ class StreamingAnalyzer:
     def __init__(self):
         self.data_cache = {}
         self.parser = CommandParser()
-        self.screener = StockScreener()
-        self.backtester = StrategyBacktester()
     
     def process_command(self, text: str) -> Generator[Dict, None, None]:
         """Process user command and route to appropriate analysis"""
@@ -715,114 +328,37 @@ class StreamingAnalyzer:
             "content": f"🔍 Processing command: {parsed['original_text']}"
         }
         
-        # Route to appropriate handler
-        if parsed['action'] == 'screen':
-            yield from self.stream_screening()
-        elif parsed['action'] == 'backtest':
-            if not parsed.get('symbols'):
+        if not parsed['symbols']:
+            yield {
+                "type": "error",
+                "content": "❌ No valid stock symbols found. Please enter symbols like: AAPL, GOOGL, TSLA, NVDA"
+            }
+            return
+        
+        # Validate symbols
+        valid_symbols = []
+        for symbol in parsed['symbols']:
+            if self.parser.validate_symbol(symbol):
+                valid_symbols.append(symbol)
+            else:
                 yield {
-                    "type": "error",
-                    "content": "❌ No symbol found for backtesting. Example: 'backtest AAPL with RSI strategy'"
+                    "type": "status",
+                    "content": f"⚠️ Skipping invalid symbol: {symbol}"
                 }
-                return
-            yield from self.stream_backtest(parsed['symbols'][0], parsed.get('strategy', 'sma_crossover'))
-        elif parsed['action'] == 'compare' and len(parsed.get('symbols', [])) >= 2:
-            yield from self.stream_comparison(parsed['symbols'][:2])
-        elif parsed.get('symbols'):
-            yield from self.stream_analysis(parsed['symbols'][0])
+        
+        if not valid_symbols:
+            yield {
+                "type": "error", 
+                "content": "❌ No valid stock symbols found. Examples: AAPL, GOOGL, TSLA, NVDA"
+            }
+            return
+        
+        # Route to appropriate analysis
+        if parsed['action'] == 'compare' and len(valid_symbols) >= 2:
+            yield from self.stream_comparison(valid_symbols[:2])
         else:
-            yield {
-                "type": "error",
-                "content": "❌ No valid command found. Try: 'AAPL', 'screen stocks', 'backtest AAPL', 'compare AAPL vs MSFT'"
-            }
-    
-    def stream_screening(self) -> Generator[Dict, None, None]:
-        """Stream stock screening results"""
-        yield {
-            "type": "status",
-            "content": "🔍 Starting stock screening process..."
-        }
-        
-        # Default screening criteria
-        criteria = {
-            'min_price': 10,
-            'max_price': 1000,
-            'min_market_cap': 1,  # 1B+
-            'max_pe': 30,
-            'min_rsi': 20,
-            'max_rsi': 80,
-            'min_1m_return': -50,
-            'min_dividend_yield': 0
-        }
-        
-        yield {
-            "type": "status",
-            "content": "📊 Analyzing S&P 500 stocks with default criteria..."
-        }
-        
-        results = self.screener.screen_stocks(criteria, "sp500")
-        
-        if results.empty:
-            yield {
-                "type": "error",
-                "content": "❌ No stocks found matching criteria. Try adjusting screening parameters."
-            }
-            return
-        
-        # Sort by performance
-        results = results.sort_values('1M Return', ascending=False)
-        
-        yield {
-            "type": "screening_results",
-            "content": {
-                'total_found': len(results),
-                'results': results.head(20),  # Top 20 results
-                'criteria': criteria
-            }
-        }
-        
-        yield {
-            "type": "complete",
-            "content": f"✅ Screening complete: Found {len(results)} stocks matching criteria"
-        }
-    
-    def stream_backtest(self, symbol: str, strategy: str) -> Generator[Dict, None, None]:
-        """Stream backtesting results"""
-        yield {
-            "type": "status",
-            "content": f"📈 Starting backtest for {symbol} with {strategy} strategy..."
-        }
-        
-        yield {
-            "type": "status",
-            "content": f"📊 Downloading historical data for {symbol}..."
-        }
-        
-        results = self.backtester.backtest_strategy(symbol, strategy, "1y")
-        
-        if "error" in results:
-            yield {
-                "type": "error",
-                "content": f"❌ Backtest failed: {results['error']}"
-            }
-            return
-        
-        yield {
-            "type": "status",
-            "content": f"🔬 Computing strategy performance metrics..."
-        }
-        
-        time.sleep(1)
-        
-        yield {
-            "type": "backtest_results",
-            "content": results
-        }
-        
-        yield {
-            "type": "complete",
-            "content": f"✅ Backtest complete for {symbol} - {results['strategy']}"
-        }
+            # Single symbol analysis
+            yield from self.stream_analysis(valid_symbols[0])
     
     def stream_comparison(self, symbols: List[str]) -> Generator[Dict, None, None]:
         """Stream comparison analysis for two symbols"""
@@ -908,7 +444,8 @@ class StreamingAnalyzer:
                 "type": "error",
                 "content": "❌ Need at least 2 valid symbols for comparison. Please check the symbols and try again."
             }
-    
+        """Stream analysis results progressively"""
+        
     def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
         """Stream analysis results progressively"""
         
@@ -1241,89 +778,10 @@ class StreamingAnalyzer:
         
         return fig
 
-# Enhanced Theme selector in sidebar
+# Theme selector in sidebar
 with st.sidebar:
     st.markdown("### 🎨 Theme")
     theme = st.selectbox("Select Theme", ["dark", "minimal", "terminal"], index=0)
-    
-    st.markdown("### 🔧 Tools")
-    tool_mode = st.selectbox("Select Mode", [
-        "🔍 Stock Analysis", 
-        "📊 Stock Screener", 
-        "📈 Strategy Backtest"
-    ], index=0)
-    
-    if tool_mode == "📊 Stock Screener":
-        st.markdown("#### Screening Criteria")
-        
-        # Price range
-        price_range = st.slider("Price Range ($)", 0, 500, (10, 200))
-        
-        # Market cap
-        min_market_cap = st.selectbox("Min Market Cap", [
-            "Any", "1B+", "10B+", "50B+", "100B+"
-        ], index=1)
-        
-        # P/E ratio
-        max_pe = st.slider("Max P/E Ratio", 5, 50, 25)
-        
-        # RSI range
-        rsi_range = st.slider("RSI Range", 0, 100, (20, 80))
-        
-        # Performance
-        min_1m_return = st.slider("Min 1M Return (%)", -50, 50, -20)
-        
-        # Sectors
-        sectors = st.multiselect("Sectors", [
-            "Technology", "Healthcare", "Financials", "Consumer Discretionary",
-            "Industrials", "Communication Services", "Energy", "Utilities",
-            "Consumer Staples", "Materials", "Real Estate"
-        ])
-        
-        if st.button("🔍 Run Screen"):
-            screening_criteria = {
-                'min_price': price_range[0],
-                'max_price': price_range[1],
-                'min_market_cap': {"Any": 0, "1B+": 1, "10B+": 10, "50B+": 50, "100B+": 100}[min_market_cap],
-                'max_pe': max_pe,
-                'min_rsi': rsi_range[0],
-                'max_rsi': rsi_range[1],
-                'min_1m_return': min_1m_return,
-                'sectors': sectors if sectors else None
-            }
-            st.session_state.messages.append({
-                "role": "user", 
-                "content": f"screen stocks with custom criteria"
-            })
-            st.session_state.custom_screening_criteria = screening_criteria
-            st.rerun()
-    
-    elif tool_mode == "📈 Strategy Backtest":
-        st.markdown("#### Backtest Settings")
-        
-        backtest_symbol = st.text_input("Symbol", placeholder="AAPL")
-        
-        strategy = st.selectbox("Strategy", [
-            "SMA Crossover",
-            "RSI Mean Reversion", 
-            "Momentum",
-            "Buy and Hold"
-        ])
-        
-        period = st.selectbox("Period", ["1y", "2y", "5y"], index=0)
-        
-        if st.button("📈 Run Backtest") and backtest_symbol:
-            strategy_map = {
-                "SMA Crossover": "sma_crossover",
-                "RSI Mean Reversion": "rsi_mean_reversion",
-                "Momentum": "momentum",
-                "Buy and Hold": "buy_and_hold"
-            }
-            st.session_state.messages.append({
-                "role": "user",
-                "content": f"backtest {backtest_symbol} with {strategy_map[strategy]} strategy"
-            })
-            st.rerun()
     
     st.markdown("### 📊 Market Status")
     st.markdown("""
@@ -1342,9 +800,6 @@ if "messages" not in st.session_state:
 
 if "analyzer" not in st.session_state:
     st.session_state.analyzer = StreamingAnalyzer()
-
-if "custom_screening_criteria" not in st.session_state:
-    st.session_state.custom_screening_criteria = None
 
 # Professional Header
 st.markdown("""
@@ -1381,13 +836,13 @@ if not st.session_state.messages:
             st.rerun()
     
     with col3:
-        if st.button("🔍 Screen Stocks", key="q3"):
-            st.session_state.messages.append({"role": "user", "content": "screen stocks"})
+        if st.button("⚡ Analyze TSLA", key="q3"):
+            st.session_state.messages.append({"role": "user", "content": "TSLA"})
             st.rerun()
     
     with col4:
-        if st.button("📈 Backtest TSLA", key="q4"):
-            st.session_state.messages.append({"role": "user", "content": "backtest TSLA with SMA strategy"})
+        if st.button("💎 Check MSFT", key="q4"):
+            st.session_state.messages.append({"role": "user", "content": "check MSFT"})
             st.rerun()
 
 # Display chat history
@@ -1425,84 +880,238 @@ for message in st.session_state.messages:
         if "comparison_table" in message:
             st.markdown("#### ⚖️ Comparison Results")
             st.dataframe(message["comparison_table"], use_container_width=True, hide_index=True)
+
+# Input section
+st.markdown("### 💬 Terminal Input")
+
+col1, col2, col3 = st.columns([6, 1, 1])
+
+with col1:
+    user_input = st.text_input(
+        "Command",
+        placeholder="Enter commands like: AAPL, GOOGL, compare NVDA and TSLA, check MSFT...",
+        key="terminal_input",
+        label_visibility="collapsed"
+    )
+
+with col2:
+    execute_btn = st.button("🚀 EXECUTE", type="primary", use_container_width=True)
+
+with col3:
+    if st.session_state.messages:
+        clear_btn = st.button("🗑️ CLEAR", use_container_width=True)
+        if clear_btn:
+            st.session_state.messages = []
+            st.rerun()
+
+# Process input with streaming
+if execute_btn and user_input.strip():
+    # Parse command to extract symbols and action
+    parsed_command = st.session_state.analyzer.parser.parse_command(user_input.strip())
+    
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": user_input.strip()})
+    
+    # Create streaming container
+    streaming_container = st.empty()
+    result_content = ""
+    chart_data = None
+    technical_table = None
+    fundamental_table = None
+    comparison_table = None
+    
+    # Stream the analysis
+    for update in st.session_state.analyzer.process_command(user_input.strip()):
+        if update["type"] == "status":
+            streaming_container.markdown(f"""
+            <div class="streaming-message">
+                <strong>🤖 TERMINAL:</strong><br/>
+                {update["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+            
+        elif update["type"] == "info":
+            info = update["content"]
+            price_color = "#10B981" if info["change"] > 0 else "#EF4444"
+            result_content += f"""
+## 📈 {info["symbol"]} - {info["name"]}
+
+**Sector:** {info["sector"]} | **Price:** ${info["price"]:.2f} | **Change:** <span style="color: {price_color}">{info["change"]:+.2f}%</span>
+
+"""
+            
+        elif update["type"] == "technical":
+            tech = update["content"]
+            result_content += """
+### 🔬 Technical Analysis
+
+"""
+            # Create technical indicators table
+            tech_data = []
+            if tech.get('rsi'): tech_data.append(["RSI (14)", f"{tech['rsi']:.1f}"])
+            if tech.get('sma_20'): tech_data.append(["SMA 20", f"${tech['sma_20']:.2f}"])
+            if tech.get('sma_50'): tech_data.append(["SMA 50", f"${tech['sma_50']:.2f}"])
+            if tech.get('macd'): tech_data.append(["MACD", f"{tech['macd']:.4f}"])
+            if tech.get('volume_ratio'): tech_data.append(["Volume Ratio", f"{tech['volume_ratio']:.2f}x"])
+            
+            if tech_data:
+                technical_table = pd.DataFrame(tech_data, columns=["Indicator", "Value"])
+            
+        elif update["type"] == "fundamental":
+            fund = update["content"]
+            result_content += """
+### 💰 Fundamental Analysis
+
+"""
+            # Create fundamental table
+            fund_data = []
+            if fund.get('pe_ratio'): fund_data.append(["P/E Ratio", f"{fund['pe_ratio']:.2f}"])
+            if fund.get('pb_ratio'): fund_data.append(["P/B Ratio", f"{fund['pb_ratio']:.2f}"])
+            if fund.get('roe'): fund_data.append(["ROE", f"{fund['roe']*100:.1f}%"])
+            if fund.get('debt_to_equity'): fund_data.append(["Debt/Equity", f"{fund['debt_to_equity']:.2f}"])
+            if fund.get('dividend_yield'): fund_data.append(["Dividend Yield", f"{fund['dividend_yield']*100:.2f}%"])
+            if fund.get('market_cap'): fund_data.append(["Market Cap", f"${fund['market_cap']/1e9:.1f}B"])
+            
+            if fund_data:
+                fundamental_table = pd.DataFrame(fund_data, columns=["Metric", "Value"])
+            
+        elif update["type"] == "insights":
+            insights = update["content"]
+            result_content += f"""
+### 🎯 AI Insights
+
+**Recommendation:** {insights["recommendation"]} | **Confidence:** {insights["confidence"]:.1%} | **Risk Level:** {insights["risk_level"]}
+
+"""
+            if insights.get("target_price"):
+                result_content += f"**Target Price:** ${insights['target_price']:.2f}\n\n"
+            
+            # Add signals
+            if insights.get("signals"):
+                result_content += "**Key Signals:**\n"
+                for signal in insights["signals"]:
+                    emoji = "🟢" if signal["type"] == "bullish" else "🔴"
+                    result_content += f"- {emoji} {signal['message']}\n"
+                result_content += "\n"
         
-        if "screening_results" in message:
-            st.markdown("#### 🔍 Stock Screening Results")
-            results = message["screening_results"]
-            st.markdown(f"**Found {results['total_found']} stocks matching criteria**")
+        elif update["type"] == "comparison":
+            comp = update["content"]
+            symbols = comp["symbols"]
+            analyses = comp["analyses"]
             
-            # Format the results table
-            df = results['results'].copy()
-            if not df.empty:
-                # Format numeric columns
-                numeric_cols = ['Price', 'Market Cap', 'P/E', 'P/B', 'ROE', 'Debt/Equity', 
-                              'Div Yield', 'RSI', '1M Return', '3M Return']
-                for col in numeric_cols:
-                    if col in df.columns:
-                        if col == 'Market Cap':
-                            df[col] = df[col].apply(lambda x: f"${x/1e9:.1f}B" if pd.notnull(x) else "N/A")
-                        elif col in ['Price', 'SMA 20', 'SMA 50']:
-                            df[col] = df[col].apply(lambda x: f"${x:.2f}" if pd.notnull(x) else "N/A")
-                        elif col in ['P/E', 'P/B', 'Debt/Equity']:
-                            df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
-                        elif col in ['ROE', 'Div Yield', '1M Return', '3M Return']:
-                            df[col] = df[col].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) else "N/A")
-                        elif col == 'RSI':
-                            df[col] = df[col].apply(lambda x: f"{x:.1f}" if pd.notnull(x) else "N/A")
-                
-                st.dataframe(df, use_container_width=True, hide_index=True)
-        
-        if "backtest_results" in message:
-            st.markdown("#### 📈 Backtest Results")
-            results = message["backtest_results"]
+            result_content = f"""
+## ⚖️ Comparison Analysis: {symbols[0]} vs {symbols[1]}
+
+### 📊 Overview
+"""
             
-            # Performance metrics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Strategy Return", f"{results['total_return']:.1f}%")
-            with col2:
-                st.metric("Buy & Hold Return", f"{results['buy_hold_return']:.1f}%")
-            with col3:
-                st.metric("Win Rate", f"{results['win_rate']:.1f}%")
-            with col4:
-                st.metric("Total Trades", results['total_trades'])
+            # Add basic comparison info
+            for symbol in symbols:
+                if symbol in analyses:
+                    analysis = analyses[symbol]
+                    price_color = "#10B981" if analysis['change'] > 0 else "#EF4444"
+                    result_content += f"""
+**{symbol}** - {analysis["info"].get("longName", symbol)[:40]}
+- Price: ${analysis['price']:.2f} (<span style="color: {price_color}">{analysis['change']:+.2f}%</span>)
+- Sector: {analysis["info"].get("sector", "Unknown")}
+
+"""
             
-            # Strategy performance chart
-            if 'data' in results and not results['data'].empty:
-                fig = go.Figure()
+            # Create comparison table
+            comp_data = []
+            for symbol in symbols:
+                if symbol in analyses:
+                    analysis = analyses[symbol]
+                    comp_data.append({
+                        "Symbol": symbol,
+                        "Company": analysis["info"].get("longName", symbol)[:25] + "..." if len(analysis["info"].get("longName", symbol)) > 25 else analysis["info"].get("longName", symbol),
+                        "Price": f"${analysis['price']:.2f}",
+                        "Change %": f"{analysis['change']:+.2f}%",
+                        "P/E Ratio": f"{analysis['fundamental'].get('pe_ratio', 0):.1f}" if analysis['fundamental'].get('pe_ratio') else 'N/A',
+                        "Market Cap": f"${(analysis['fundamental'].get('market_cap', 0) or 0)/1e9:.1f}B" if analysis['fundamental'].get('market_cap') else 'N/A',
+                        "RSI": f"{analysis['technical'].get('rsi', 0):.1f}" if analysis['technical'].get('rsi') else 'N/A',
+                        "ROE": f"{(analysis['fundamental'].get('roe', 0) or 0)*100:.1f}%" if analysis['fundamental'].get('roe') else 'N/A'
+                    })
+            
+            if comp_data:
+                comparison_table = pd.DataFrame(comp_data)
                 
-                data = results['data']
+            # Add simple comparison insights
+            if len(comp_data) == 2:
+                stock1, stock2 = comp_data[0], comp_data[1]
+                result_content += f"""
+### 🎯 Quick Comparison
+"""
                 
-                # Calculate cumulative returns
-                strategy_cumret = (1 + data['Strategy_Returns'].fillna(0)).cumprod()
-                buyhold_cumret = (1 + data['Returns'].fillna(0)).cumprod()
+                # Price comparison
+                price1 = float(stock1["Price"].replace("$", ""))
+                price2 = float(stock2["Price"].replace("$", ""))
+                if price1 > price2:
+                    result_content += f"- **Higher Price**: {stock1['Symbol']} (${price1:.2f}) vs {stock2['Symbol']} (${price2:.2f})\n"
+                else:
+                    result_content += f"- **Higher Price**: {stock2['Symbol']} (${price2:.2f}) vs {stock1['Symbol']} (${price1:.2f})\n"
                 
-                fig.add_trace(go.Scatter(
-                    x=data.index,
-                    y=strategy_cumret,
-                    name=results['strategy'],
-                    line=dict(color='#10B981', width=2)
-                ))
+                # Market cap comparison
+                if stock1["Market Cap"] != 'N/A' and stock2["Market Cap"] != 'N/A':
+                    cap1 = float(stock1["Market Cap"].replace("$", "").replace("B", ""))
+                    cap2 = float(stock2["Market Cap"].replace("$", "").replace("B", ""))
+                    larger_cap = stock1['Symbol'] if cap1 > cap2 else stock2['Symbol']
+                    result_content += f"- **Larger Market Cap**: {larger_cap}\n"
                 
-                fig.add_trace(go.Scatter(
-                    x=data.index,
-                    y=buyhold_cumret,
-                    name='Buy & Hold',
-                    line=dict(color='#3B82F6', width=2)
-                ))
-                
-                # Add buy/sell signals
-                signals = results.get('signals', [])
-                if signals:
-                    buy_signals = [s for s in signals if s.get('Signal', s.get('Position', 0)) > 0]
-                    
-                    if buy_signals:
-                        buy_dates = [data.index[i] for i, s in enumerate(buy_signals[:10])]
-                        buy_prices = [s['Close'] for s in buy_signals[:10]]
-                        fig.add_trace(go.Scatter(
-                            x=buy_dates,
-                            y=buy_prices,
-                            mode='markers',
-                            marker=dict(color='green', size=10, symbol='triangle-up'),
-                            name='Buy Signals'
-                        ))
+                # P/E comparison
+                if stock1["P/E Ratio"] != 'N/A' and stock2["P/E Ratio"] != 'N/A':
+                    pe1 = float(stock1["P/E Ratio"])
+                    pe2 = float(stock2["P/E Ratio"])
+                    lower_pe = stock1['Symbol'] if pe1 < pe2 else stock2['Symbol']
+                    result_content += f"- **Lower P/E (Better Value)**: {lower_pe}\n"
+            
+        elif update["type"] == "chart":
+            chart_data = update["content"]
+            
+        elif update["type"] == "complete":
+            # Final update - clear streaming container and add final message
+            streaming_container.empty()
+            
+            final_message = {
+                "role": "assistant",
+                "content": result_content
+            }
+            
+            if chart_data:
+                final_message["chart"] = chart_data
+            if technical_table is not None:
+                final_message["technical_table"] = technical_table
+            if fundamental_table is not None:
+                final_message["fundamental_table"] = fundamental_table
+            if comparison_table is not None:
+                final_message["comparison_table"] = comparison_table
+            
+            st.session_state.messages.append(final_message)
+            st.rerun()
+            
+        elif update["type"] == "error":
+            streaming_container.markdown(f"""
+            <div class="ai-message">
+                <strong>🤖 TERMINAL:</strong><br/>
+                {update["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": update["content"]
+            })
+            time.sleep(2)
+            st.rerun()
+
+# Professional Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: var(--text-secondary); padding: 2rem; font-family: "Inter", sans-serif;'>
+    <p><strong>📈 US Stock Terminal Pro v1.0</strong></p>
+    <p>Real-time Market Analysis • Professional Trading Intelligence • AI-Powered Insights</p>
+    <p style="font-size: 0.75rem; margin-top: 1rem;">
+        ⚠️ For educational and research purposes only. Not financial advice.
+    </p>
+</div>
+""", unsafe_allow_html=True)
