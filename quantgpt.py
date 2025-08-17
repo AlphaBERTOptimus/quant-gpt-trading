@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 import yfinance as yf
 import re
 import time
+import hashlib
 from typing import Dict, List, Generator, Any
 
 # 修复输入框文本颜色问题
@@ -24,7 +25,13 @@ def get_theme_css():
     .status-bar { display: flex; gap: 1rem; background: var(--bg-secondary); padding: 0.5rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.8rem; }
     .user-message { background: var(--bg-secondary); padding: 1rem; margin: 0.5rem 0; border-radius: 6px; border-left: 3px solid var(--accent-color); }
     .ai-message { background: var(--bg-secondary); padding: 1rem; margin: 0.5rem 0; border-radius: 6px; border-left: 3px solid var(--success-color); }
-    .stButton>button { background: var(--accent-color); color: white; border-radius: 6px; }
+    
+    /* 修复按钮文本颜色 */
+    .stButton>button {
+        background: var(--accent-color);
+        color: white !important;
+        border-radius: 6px;
+    }
     
     /* 修复输入框文本颜色 */
     .stTextInput>div>div>input {
@@ -366,13 +373,15 @@ def main():
     """, unsafe_allow_html=True)
     
     # 显示消息历史
-    for msg in st.session_state.messages:
-        if msg["role"] == "trader":  # 修改为TRADER
+    for i, msg in enumerate(st.session_state.messages):
+        if msg["role"] == "trader":
             st.markdown(f'<div class="user-message"><b>TRADER:</b> {msg["content"]}</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="ai-message"><b>TERMINAL:</b> {msg["content"]}</div>', unsafe_allow_html=True)
             if "chart" in msg:
-                st.plotly_chart(msg["chart"], use_container_width=True)
+                # 为每个图表生成唯一ID
+                chart_id = hashlib.md5(f"{msg['content']}_{i}".encode()).hexdigest()
+                st.plotly_chart(msg["chart"], use_container_width=True, key=f"chart_{chart_id}")
             if "results" in msg:
                 st.dataframe(pd.DataFrame(msg["results"]))
     
