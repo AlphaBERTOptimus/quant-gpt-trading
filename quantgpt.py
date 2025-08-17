@@ -2,346 +2,721 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
 import yfinance as yf
 import re
+import json
 import time
-import hashlib
-from typing import Dict, List, Generator, Any
+from typing import Dict, List, Optional, Tuple, Generator
+import warnings
+warnings.filterwarnings('ignore')
 
-def get_theme_css():
-    return """
+# Professional Terminal Configuration
+st.set_page_config(
+    page_title="US Stock Terminal Pro",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# Modern Professional Theme CSS
+def get_theme_css(theme="dark"):
+    themes = {
+        "dark": {
+            "bg_primary": "#0F172A",
+            "bg_secondary": "#1E293B", 
+            "bg_accent": "#334155",
+            "text_primary": "#F8FAFC",
+            "text_secondary": "#CBD5E1",
+            "accent_color": "#3B82F6",
+            "success_color": "#10B981",
+            "warning_color": "#F59E0B",
+            "danger_color": "#EF4444"
+        },
+        "minimal": {
+            "bg_primary": "#FFFFFF",
+            "bg_secondary": "#F8FAFC",
+            "bg_accent": "#E2E8F0",
+            "text_primary": "#1E293B",
+            "text_secondary": "#475569",
+            "accent_color": "#3B82F6",
+            "success_color": "#059669",
+            "warning_color": "#D97706",
+            "danger_color": "#DC2626"
+        },
+        "terminal": {
+            "bg_primary": "#000000",
+            "bg_secondary": "#0D1117",
+            "bg_accent": "#21262D",
+            "text_primary": "#00FF41",
+            "text_secondary": "#58A6FF",
+            "accent_color": "#00FF41",
+            "success_color": "#7C3AED",
+            "warning_color": "#F59E0B",
+            "danger_color": "#FF6B6B"
+        }
+    }
+    
+    colors = themes.get(theme, themes["dark"])
+    
+    return f"""
 <style>
-    :root {
-        --bg-primary: #0F172A;
-        --bg-secondary: #1E293B;
-        --text-primary: #F8FAFC;
-        --accent-color: #3B82F6;
-        --success-color: #10B981;
-        --warning-color: #F59E0B;
-        --danger-color: #EF4444;
-    }
-    .stApp { 
-        background: var(--bg-primary); 
-        color: var(--text-primary); 
-        font-family: 'SF Mono', 'Courier New', monospace;
-    }
-    .terminal-header { 
-        background: linear-gradient(135deg, var(--bg-secondary) 0%, #334155 100%); 
-        padding: 1.5rem; 
-        border-radius: 8px; 
-        margin-bottom: 1rem;
-        border: 1px solid #334155;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    }
-    .status-bar { 
-        display: flex; 
-        gap: 1.2rem; 
-        background: var(--bg-secondary); 
-        padding: 0.8rem 1.2rem; 
-        border-radius: 8px; 
-        margin-bottom: 1.5rem; 
-        font-size: 0.85rem;
-        border: 1px solid #334155;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        justify-content: space-between;
-    }
-    .user-message { 
-        background: var(--bg-secondary); 
-        padding: 1.2rem; 
-        margin: 0.8rem 0; 
-        border-radius: 8px; 
-        border-left: 4px solid var(--accent-color);
-        font-size: 1.0rem;
-    }
-    .ai-message { 
-        background: var(--bg-secondary); 
-        padding: 1.2rem; 
-        margin: 0.8rem 0; 
-        border-radius: 8px; 
-        border-left: 4px solid var(--success-color);
-        font-size: 1.0rem;
-    }
-    .error-message {
-        background: rgba(239, 68, 68, 0.15) !important;
-        border-left: 4px solid var(--danger-color) !important;
-        padding: 1.2rem;
-        border-radius: 8px;
-        margin: 0.8rem 0;
-    }
-    .status-message {
-        background: rgba(59, 130, 246, 0.15) !important;
-        border-left: 4px solid var(--accent-color) !important;
-        padding: 1.2rem;
-        border-radius: 8px;
-        margin: 0.8rem 0;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
     
-    /* 修复按钮样式 */
-    .stButton>button {
-        background: var(--accent-color) !important;
-        color: white !important;
+    :root {{
+        --bg-primary: {colors['bg_primary']};
+        --bg-secondary: {colors['bg_secondary']};
+        --bg-accent: {colors['bg_accent']};
+        --text-primary: {colors['text_primary']};
+        --text-secondary: {colors['text_secondary']};
+        --accent-color: {colors['accent_color']};
+        --success-color: {colors['success_color']};
+        --warning-color: {colors['warning_color']};
+        --danger-color: {colors['danger_color']};
+    }}
+    
+    .stApp {{
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: 'Inter', sans-serif;
+    }}
+    
+    /* Hide Streamlit UI */
+    #MainMenu, footer, header, .stDeployButton {{visibility: hidden;}}
+    
+    /* Professional Header */
+    .terminal-header {{
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-accent) 100%);
+        padding: 1.5rem 2rem;
+        border-radius: 8px;
+        border: 1px solid var(--bg-accent);
+        margin-bottom: 2rem;
+        backdrop-filter: blur(10px);
+    }}
+    
+    .terminal-title {{
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0;
+        letter-spacing: -0.025em;
+    }}
+    
+    .terminal-subtitle {{
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin: 0.25rem 0 0 0;
+        font-weight: 400;
+    }}
+    
+    /* Status Bar */
+    .status-bar {{
+        display: flex;
+        gap: 2rem;
+        background: var(--bg-secondary);
+        padding: 1rem 2rem;
         border-radius: 6px;
+        border: 1px solid var(--bg-accent);
+        margin-bottom: 2rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+    }}
+    
+    .status-item {{
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--success-color);
+    }}
+    
+    /* Message Containers */
+    .user-message {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--bg-accent);
+        border-left: 3px solid var(--accent-color);
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-radius: 6px;
+        font-family: 'JetBrains Mono', monospace;
+    }}
+    
+    .ai-message {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--success-color);
+        border-left: 3px solid var(--success-color);
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-radius: 6px;
+    }}
+    
+    .streaming-message {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--warning-color);
+        border-left: 3px solid var(--warning-color);
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-radius: 6px;
+        animation: pulse 2s infinite;
+    }}
+    
+    @keyframes pulse {{
+        0%, 100% {{ opacity: 0.8; }}
+        50% {{ opacity: 1; }}
+    }}
+    
+    /* Input Area */
+    .stTextInput > div > div > input {{
+        background: var(--bg-secondary);
+        border: 2px solid var(--bg-accent);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-family: 'JetBrains Mono', monospace;
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+    }}
+    
+    .stTextInput > div > div > input:focus {{
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }}
+    
+    /* Buttons */
+    .stButton > button {{
+        background: var(--accent-color);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        font-family: 'Inter', sans-serif;
         font-weight: 600;
-        padding: 0.8rem 1.1rem !important;
-        transition: all 0.3s ease;
-    }
-    .stButton>button:hover {
-        background: var(--success-color) !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    }
+        padding: 0.75rem 1.5rem;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+    }}
     
-    /* 修复输入框 */
-    .stTextInput>div>div>input {
-        color: var(--text-primary) !important;
-        background-color: rgba(255, 255, 255, 0.1) !important;
-        border: 1px solid #334155 !important;
-        padding: 0.9rem !important;
+    .stButton > button:hover {{
+        background: var(--success-color);
+        transform: translateY(-1px);
+    }}
+    
+    /* Quick Actions */
+    .quick-action {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--bg-accent);
         border-radius: 6px;
-        font-size: 1.05rem;
-    }
-    .stTextInput>div>div>input:focus {
-        border-color: var(--accent-color) !important;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
-    }
-    .stTextInput>div>div>input::placeholder {
-        color: #94a3b8 !important;
-    }
+        padding: 1rem;
+        margin: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+    }}
     
-    /* 表格样式 */
-    .stDataFrame {
-        border: 1px solid #334155 !important;
-        border-radius: 8px;
-        margin: 1.5rem 0;
-    }
-    .stDataFrame th {
-        background-color: var(--bg-secondary) !important;
-    }
+    .quick-action:hover {{
+        border-color: var(--accent-color);
+        background: var(--bg-accent);
+    }}
     
-    @media (max-width: 768px) {
-        .status-bar {
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        .stButton>button {
-            padding: 0.75rem !important;
-            font-size: 0.9rem !important;
-        }
-    }
+    /* Data Tables */
+    .dataframe {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--bg-accent);
+        border-radius: 6px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+    }}
+    
+    /* Metrics */
+    .metric-card {{
+        background: var(--bg-secondary);
+        border: 1px solid var(--bg-accent);
+        border-radius: 6px;
+        padding: 1rem;
+        text-align: center;
+        margin: 0.5rem 0;
+    }}
+    
+    .metric-value {{
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--accent-color);
+        font-family: 'JetBrains Mono', monospace;
+    }}
+    
+    .metric-label {{
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }}
+    
+    /* Responsive */
+    @media (max-width: 768px) {{
+        .terminal-header {{ padding: 1rem; }}
+        .status-bar {{ flex-direction: column; gap: 1rem; }}
+        .quick-action {{ margin: 0.25rem; }}
+    }}
 </style>
 """
 
-class StockDatabase:
-    def get_all_us_stocks(self) -> List[str]:
-        return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'JNJ', 'V', 'PG', 'HD', 'MA', 'DIS', 'BAC', 'CRM', 'KO', 'PFE', 'INTC', 'VZ', 'WMT', 'XOM', 'CVX']
-
 class CommandParser:
+    """Smart command parser for stock analysis"""
+    
     @staticmethod
     def parse_command(text: str) -> Dict:
+        """Parse user command and extract symbols and action"""
         text = text.upper().strip()
-        symbols = re.findall(r'\b[A-Z]{1,5}\b', text)
-        action = 'analyze'
-        params = {}
         
-        if 'SCREEN' in text:
-            action = 'screen'
-            if 'PE' in text:
-                if '<' in text:
-                    pe_match = re.search(r'PE\s*<\s*(\d+)', text)
-                    if pe_match: params['pe_max'] = float(pe_match.group(1))
-        elif 'COMPARE' in text or 'VS' in text:
+        # Stock symbol pattern (1-5 letters, optionally followed by numbers)
+        symbol_pattern = r'\b[A-Z]{1,5}(?:\d{0,2})?\b'
+        
+        # Extract all potential symbols
+        potential_symbols = re.findall(symbol_pattern, text)
+        
+        # Filter out common command words
+        command_words = {'ANALYZE', 'ANALYSE', 'CHECK', 'LOOK', 'AT', 'SHOW', 'ME', 'TELL', 
+                        'ABOUT', 'GET', 'DATA', 'FOR', 'COMPARE', 'VS', 'VERSUS', 'AND', 
+                        'WITH', 'AGAINST', 'STOCK', 'STOCKS', 'PRICE', 'CHART', 'INFO',
+                        'INFORMATION', 'DETAILS', 'ANALYSIS', 'REPORT', 'THE', 'OF', 'IS',
+                        'ARE', 'WHAT', 'HOW', 'WHY', 'WHEN', 'WHERE', 'WHICH'}
+        
+        symbols = [s for s in potential_symbols if s not in command_words]
+        
+        # Determine action type
+        if any(word in text for word in ['COMPARE', 'VS', 'VERSUS', 'AGAINST']):
             action = 'compare'
-        elif '*' in text:
-            action = 'check_all'
-            prefix = re.search(r'([A-Z]+)\*', text)
-            if prefix: params['prefix'] = prefix.group(1)
+        elif any(word in text for word in ['ANALYZE', 'ANALYSE', 'CHECK', 'LOOK', 'SHOW', 'TELL']):
+            action = 'analyze'
+        else:
+            action = 'analyze'  # Default action
         
-        return {'action': action, 'symbols': symbols[:5], 'params': params}
+        return {
+            'action': action,
+            'symbols': symbols[:5],  # Limit to 5 symbols max
+            'original_text': text
+        }
+    
+    @staticmethod
+    def validate_symbol(symbol: str) -> bool:
+        """Validate if symbol looks like a valid stock ticker"""
+        if not symbol or len(symbol) < 1 or len(symbol) > 7:
+            return False
+        
+        # Must start with letter
+        if not symbol[0].isalpha():
+            return False
+        
+        # Rest can be letters or numbers
+        return all(c.isalnum() for c in symbol)
 
-class StockAnalyzer:
+class StreamingAnalyzer:
+    """Streaming Analysis Engine"""
+    
     def __init__(self):
+        self.data_cache = {}
         self.parser = CommandParser()
-        self.stock_db = StockDatabase()
     
     def process_command(self, text: str) -> Generator[Dict, None, None]:
-        """处理用户命令的路由"""
+        """Process user command and route to appropriate analysis"""
+        # Parse the command
         parsed = self.parser.parse_command(text)
-        yield {"type": "status", "content": f"🔍 Processing command: {text}"}
-        time.sleep(0.3)
         
-        try:
-            if parsed['action'] == 'screen':
-                yield from self.screen_stocks(parsed['params'])
-            elif parsed['action'] == 'compare' and len(parsed['symbols']) >= 2:
-                yield from self.compare_stocks(parsed['symbols'])
-            elif parsed['action'] == 'check_all':
-                yield from self.check_all_stocks(parsed['params'])
-            elif parsed['symbols']:
-                if len(parsed['symbols']) == 1:
-                    yield from self.analyze_stock(parsed['symbols'][0])
-                else:
-                    yield from self.analyze_multiple_stocks(parsed['symbols'])
+        yield {
+            "type": "status",
+            "content": f"🔍 Processing command: {parsed['original_text']}"
+        }
+        
+        if not parsed['symbols']:
+            yield {
+                "type": "error",
+                "content": "❌ No valid stock symbols found. Please enter symbols like: AAPL, GOOGL, TSLA, NVDA"
+            }
+            return
+        
+        # Validate symbols
+        valid_symbols = []
+        for symbol in parsed['symbols']:
+            if self.parser.validate_symbol(symbol):
+                valid_symbols.append(symbol)
             else:
-                yield {"type": "error", "content": "❌ Invalid command. Try: AAPL, screen PE<15, compare AAPL MSFT, TECH*"}
-        except Exception as e:
-            yield {"type": "error", "content": f"🔥 Command processing failed: {str(e)}"}
+                yield {
+                    "type": "status",
+                    "content": f"⚠️ Skipping invalid symbol: {symbol}"
+                }
+        
+        if not valid_symbols:
+            yield {
+                "type": "error", 
+                "content": "❌ No valid stock symbols found. Examples: AAPL, GOOGL, TSLA, NVDA"
+            }
+            return
+        
+        # Route to appropriate analysis
+        if parsed['action'] == 'compare' and len(valid_symbols) >= 2:
+            yield from self.stream_comparison(valid_symbols[:2])
+        else:
+            # Single symbol analysis
+            yield from self.stream_analysis(valid_symbols[0])
     
-    def get_stock_data(self, symbol: str, retries=2):
-        """获取股票数据，带有重试机制"""
-        for i in range(retries):
+    def stream_comparison(self, symbols: List[str]) -> Generator[Dict, None, None]:
+        """Stream comparison analysis for two symbols"""
+        yield {
+            "type": "status",
+            "content": f"⚖️ Starting comparison: {symbols[0]} vs {symbols[1]}"
+        }
+        
+        analyses = {}
+        
+        # Analyze each symbol
+        for i, symbol in enumerate(symbols):
+            yield {
+                "type": "status",
+                "content": f"📊 Analyzing {symbol} ({i+1}/{len(symbols)})..."
+            }
+            
             try:
                 ticker = yf.Ticker(symbol)
                 data = ticker.history(period="1y")
                 info = ticker.info
                 
-                if not data.empty:
-                    return data, info
-                time.sleep(0.5)
-            except Exception:
-                time.sleep(1)
-        return None, None
-    
-    def analyze_stock(self, symbol: str) -> Generator[Dict, None, None]:
-        """分析单个股票"""
-        yield {"type": "status", "content": f"📊 Analyzing {symbol}..."}
-        time.sleep(0.5)
+                if data.empty:
+                    yield {
+                        "type": "status",
+                        "content": f"⚠️ No data found for {symbol}, skipping..."
+                    }
+                    continue
+                
+                # Quick analysis for comparison
+                yield {
+                    "type": "status",
+                    "content": f"🔬 Computing indicators for {symbol}..."
+                }
+                
+                technical_data = self._calculate_technical_indicators(data)
+                fundamental_data = self._extract_fundamentals(info)
+                
+                analyses[symbol] = {
+                    'data': data,
+                    'info': info,
+                    'technical': technical_data,
+                    'fundamental': fundamental_data,
+                    'price': data['Close'].iloc[-1],
+                    'change': ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
+                }
+                
+                yield {
+                    "type": "status",
+                    "content": f"✅ {symbol} analysis complete"
+                }
+                
+            except Exception as e:
+                yield {
+                    "type": "status",
+                    "content": f"❌ Failed to analyze {symbol}: {str(e)}"
+                }
+                continue
         
-        try:
-            data, info = self.get_stock_data(symbol)
+        # Generate comparison results
+        if len(analyses) >= 2:
+            yield {
+                "type": "status",
+                "content": "📋 Generating comparison report..."
+            }
             
-            if data is None or data.empty:
-                yield {"type": "error", "content": f"⚠️ No data found for {symbol}"}
-                return
-            
-            # 计算关键指标
-            price = data['Close'].iloc[-1]
-            change = ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
-            pe = info.get('trailingPE', 'N/A')
-            market_cap = f"${info.get('marketCap', 0)/1e9:.1f}B" if info.get('marketCap') else 'N/A'
-            
-            # 计算RSI
-            rsi = self.calculate_rsi(data) if len(data) >= 14 else 'N/A'
-            
-            # 创建图表
-            fig = self.create_chart(data, symbol)
-            
-            # 生成分析报告
-            analysis_report = self.generate_analysis_report(symbol, info)
+            time.sleep(0.5)
             
             yield {
-                "type": "analysis",
+                "type": "comparison",
                 "content": {
-                    'symbol': symbol,
-                    'price': price,
-                    'change': change,
-                    'pe': pe,
-                    'market_cap': market_cap,
-                    'rsi': rsi,
-                    'chart': fig,
-                    'analysis_report': analysis_report
+                    'symbols': symbols,
+                    'analyses': analyses
                 }
+            }
+            
+            yield {
+                "type": "complete",
+                "content": f"✅ Comparison complete: {' vs '.join(symbols)}"
+            }
+        else:
+            yield {
+                "type": "error",
+                "content": "❌ Need at least 2 valid symbols for comparison. Please check the symbols and try again."
+            }
+        """Stream analysis results progressively"""
+        
+    def stream_analysis(self, symbol: str) -> Generator[Dict, None, None]:
+        """Stream analysis results progressively"""
+        
+        # Validate symbol first
+        if not self.parser.validate_symbol(symbol):
+            yield {
+                "type": "error",
+                "content": f"❌ Invalid symbol format: {symbol}"
+            }
+            return
+        
+        # Step 1: Initial validation
+        yield {
+            "type": "status",
+            "content": f"🔍 Validating symbol: {symbol.upper()}"
+        }
+        time.sleep(0.5)
+        
+        # Step 2: Data fetching
+        yield {
+            "type": "status", 
+            "content": f"📊 Fetching market data for {symbol.upper()}..."
+        }
+        
+        try:
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(period="1y")
+            info = ticker.info
+            
+            if data.empty:
+                yield {
+                    "type": "error",
+                    "content": f"❌ No data found for symbol: {symbol.upper()}. Please check if the symbol is correct."
+                }
+                return
+            
+            time.sleep(1)
+            
+            # Step 3: Basic info
+            yield {
+                "type": "info",
+                "content": {
+                    "symbol": symbol.upper(),
+                    "name": info.get("longName", symbol.upper()),
+                    "sector": info.get("sector", "Unknown"),
+                    "price": data['Close'].iloc[-1],
+                    "change": ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
+                }
+            }
+            
+            # Step 4: Technical analysis
+            yield {
+                "type": "status",
+                "content": "🔬 Computing technical indicators..."
+            }
+            time.sleep(0.8)
+            
+            technical_data = self._calculate_technical_indicators(data)
+            yield {
+                "type": "technical",
+                "content": technical_data
+            }
+            
+            # Step 5: Fundamental analysis
+            yield {
+                "type": "status", 
+                "content": "💰 Analyzing fundamentals..."
+            }
+            time.sleep(0.8)
+            
+            fundamental_data = self._extract_fundamentals(info)
+            yield {
+                "type": "fundamental",
+                "content": fundamental_data
+            }
+            
+            # Step 6: AI insights
+            yield {
+                "type": "status",
+                "content": "🤖 Generating AI insights..."
+            }
+            time.sleep(1)
+            
+            ai_insights = self._generate_insights(technical_data, fundamental_data, data)
+            yield {
+                "type": "insights",
+                "content": ai_insights
+            }
+            
+            # Step 7: Chart data
+            yield {
+                "type": "status",
+                "content": "📈 Preparing interactive charts..."
+            }
+            time.sleep(0.5)
+            
+            chart_data = self._create_chart(data, technical_data)
+            yield {
+                "type": "chart",
+                "content": chart_data
+            }
+            
+            # Final status
+            yield {
+                "type": "complete",
+                "content": f"✅ Analysis complete for {symbol.upper()}"
             }
             
         except Exception as e:
-            yield {"type": "error", "content": f"❌ Analysis failed for {symbol}: {str(e)}"}
-    
-    def generate_analysis_report(self, symbol: str, info: dict) -> str:
-        """生成专业的股票分析报告"""
-        try:
-            name = info.get('longName', symbol)
-            sector = info.get('sector', 'N/A')
-            industry = info.get('industry', 'N/A')
-            recommendation = info.get('recommendationKey', 'N/A').capitalize()
-            
-            report = f"""
-            <div class='ai-message'>
-                <h3>📈 {name} ({symbol}) Professional Analysis</h3>
-                <p><b>Sector:</b> {sector} | <b>Industry:</b> {industry}</p>
-                <p><b>Valuation:</b> PE Ratio: {info.get('trailingPE', 'N/A')}</p>
-                <p><b>Market Cap:</b> ${info.get('marketCap', 0)/1e9:.2f}B</p>
-                
-                <h4>Key Metrics:</h4>
-                <ul>
-                    <li><b>Profit Margin:</b> {info.get('profitMargins', 'N/A')}</li>
-                    <li><b>Revenue Growth (YoY):</b> {info.get('revenueGrowth', 'N/A')}</li>
-                    <li><b>52 Week Range:</b> {info.get('fiftyTwoWeekLow', 'N/A')} - {info.get('fiftyTwoWeekHigh', 'N/A')}</li>
-                </ul>
-                
-                <h4>Analyst Consensus:</h4>
-                <p>Recommendation: <b>{recommendation}</b> | Target Price: ${info.get('targetMeanPrice', 'N/A')}</p>
-            </div>
-            """
-            return report
-        except:
-            return f"<div class='ai-message'>📋 Generated basic analysis report for {symbol}</div>"
-    
-    def analyze_multiple_stocks(self, symbols: List[str]) -> Generator[Dict, None, None]:
-        """分析多只股票"""
-        yield {"type": "status", "content": f"📊 Analyzing {len(symbols)} stocks: {', '.join(symbols)}"}
-        time.sleep(0.5)
-        
-        results = []
-        for i, symbol in enumerate(symbols):
-            yield {"type": "status", "content": f"🔄 Analyzing {symbol} ({i+1}/{len(symbols)})..."}
-            time.sleep(0.3)
-            
-            try:
-                data, info = self.get_stock_data(symbol)
-                
-                if data is not None and not data.empty:
-                    price = data['Close'].iloc[-1]
-                    change = ((data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100) if len(data) > 1 else 0
-                    pe = info.get('trailingPE', 'N/A')
-                    market_cap = f"${info.get('marketCap', 0)/1e9:.1f}B" if info.get('marketCap') else 'N/A'
-                    
-                    results.append({
-                        'Symbol': symbol,
-                        'Name': info.get('shortName', symbol)[:20],
-                        'Price': price,
-                        'Change (%)': f"{change:.2f}%",
-                        'PE Ratio': pe,
-                        'Market Cap': market_cap
-                    })
-            except:
-                continue
-        
-        if results:
             yield {
-                "type": "multiple_analysis",
-                "content": {
-                    'results': results,
-                    'symbols': symbols
-                }
+                "type": "error",
+                "content": f"❌ Analysis failed for {symbol.upper()}: {str(e)}"
             }
-        else:
-            yield {"type": "error", "content": "❌ Could not analyze any of the provided symbols"}
     
-    def calculate_rsi(self, data: pd.DataFrame) -> float:
-        """计算RSI指标"""
+    def _calculate_technical_indicators(self, data: pd.DataFrame) -> Dict:
+        """Calculate technical indicators"""
         close = data['Close']
-        delta = close.diff()
-        gain = delta.where(delta > 0, 0).rolling(14).mean()
-        loss = -delta.where(delta < 0, 0).rolling(14).mean()
-        rs = gain / loss
-        return (100 - (100 / (1 + rs))).iloc[-1]
+        high = data['High'] 
+        low = data['Low']
+        volume = data['Volume']
+        
+        indicators = {}
+        
+        # Moving averages
+        indicators['sma_20'] = close.rolling(20).mean().iloc[-1] if len(close) >= 20 else None
+        indicators['sma_50'] = close.rolling(50).mean().iloc[-1] if len(close) >= 50 else None
+        indicators['ema_12'] = close.ewm(span=12).mean().iloc[-1] if len(close) >= 12 else None
+        indicators['ema_26'] = close.ewm(span=26).mean().iloc[-1] if len(close) >= 26 else None
+        
+        # RSI
+        if len(close) >= 14:
+            delta = close.diff()
+            gain = delta.where(delta > 0, 0).rolling(14).mean()
+            loss = -delta.where(delta < 0, 0).rolling(14).mean()
+            rs = gain / loss
+            indicators['rsi'] = (100 - (100 / (1 + rs))).iloc[-1]
+        
+        # MACD
+        if len(close) >= 26:
+            ema_12 = close.ewm(span=12).mean()
+            ema_26 = close.ewm(span=26).mean()
+            macd = ema_12 - ema_26
+            signal = macd.ewm(span=9).mean()
+            indicators['macd'] = macd.iloc[-1]
+            indicators['macd_signal'] = signal.iloc[-1]
+            indicators['macd_histogram'] = (macd - signal).iloc[-1]
+        
+        # Bollinger Bands
+        if len(close) >= 20:
+            sma = close.rolling(20).mean()
+            std = close.rolling(20).std()
+            indicators['bb_upper'] = (sma + 2*std).iloc[-1]
+            indicators['bb_lower'] = (sma - 2*std).iloc[-1]
+            indicators['bb_middle'] = sma.iloc[-1]
+        
+        # Volume
+        indicators['volume_avg'] = volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
+        indicators['volume_ratio'] = volume.iloc[-1] / volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
+        
+        return indicators
     
-    def create_chart(self, data: pd.DataFrame, symbol: str) -> go.Figure:
-        """创建股票价格图表"""
+    def _extract_fundamentals(self, info: Dict) -> Dict:
+        """Extract fundamental data"""
+        return {
+            'market_cap': info.get('marketCap'),
+            'pe_ratio': info.get('trailingPE'),
+            'pb_ratio': info.get('priceToBook'),
+            'ps_ratio': info.get('priceToSalesTrailing12Months'),
+            'roe': info.get('returnOnEquity'),
+            'debt_to_equity': info.get('debtToEquity'),
+            'current_ratio': info.get('currentRatio'),
+            'dividend_yield': info.get('dividendYield'),
+            'revenue_growth': info.get('revenueGrowth'),
+            'beta': info.get('beta'),
+            'target_price': info.get('targetMeanPrice')
+        }
+    
+    def _generate_insights(self, technical: Dict, fundamental: Dict, data: pd.DataFrame) -> Dict:
+        """Generate AI insights"""
+        signals = []
+        score = 0
+        total_factors = 0
+        
+        # RSI analysis
+        rsi = technical.get('rsi', 50)
+        if rsi < 30:
+            signals.append({"type": "bullish", "message": "RSI oversold - potential buy signal"})
+            score += 1
+        elif rsi > 70:
+            signals.append({"type": "bearish", "message": "RSI overbought - caution advised"})
+        else:
+            score += 0.5
+        total_factors += 1
+        
+        # MACD analysis
+        macd = technical.get('macd', 0)
+        macd_signal = technical.get('macd_signal', 0)
+        if macd and macd_signal:
+            if macd > macd_signal:
+                signals.append({"type": "bullish", "message": "MACD bullish crossover"})
+                score += 1
+            else:
+                signals.append({"type": "bearish", "message": "MACD bearish crossover"})
+            total_factors += 1
+        
+        # Moving average trend
+        current_price = data['Close'].iloc[-1]
+        sma_20 = technical.get('sma_20')
+        sma_50 = technical.get('sma_50')
+        
+        if sma_20 and sma_50:
+            if current_price > sma_20 > sma_50:
+                signals.append({"type": "bullish", "message": "Price above rising moving averages"})
+                score += 1
+            elif current_price < sma_20 < sma_50:
+                signals.append({"type": "bearish", "message": "Price below declining moving averages"})
+            else:
+                score += 0.5
+            total_factors += 1
+        
+        # Fundamental signals
+        pe = fundamental.get('pe_ratio')
+        if pe:
+            if pe < 15:
+                signals.append({"type": "bullish", "message": "Low PE ratio - potentially undervalued"})
+                score += 1
+            elif pe > 30:
+                signals.append({"type": "bearish", "message": "High PE ratio - potentially overvalued"})
+            else:
+                score += 0.5
+            total_factors += 1
+        
+        confidence = score / total_factors if total_factors > 0 else 0.5
+        
+        # Generate recommendation
+        if confidence >= 0.75:
+            recommendation = "Strong Buy"
+            risk_level = "Low"
+        elif confidence >= 0.6:
+            recommendation = "Buy" 
+            risk_level = "Medium"
+        elif confidence >= 0.4:
+            recommendation = "Hold"
+            risk_level = "Medium"
+        else:
+            recommendation = "Sell"
+            risk_level = "High"
+        
+        return {
+            'signals': signals,
+            'confidence': confidence,
+            'recommendation': recommendation,
+            'risk_level': risk_level,
+            'target_price': current_price * (1 + confidence * 0.15) if confidence > 0.5 else None
+        }
+    
+    def _create_chart(self, data: pd.DataFrame, technical: Dict) -> go.Figure:
+        """Create professional chart"""
         fig = make_subplots(
-            rows=2, 
-            cols=1, 
-            shared_xaxes=True, 
-            vertical_spacing=0.05,
-            row_heights=[0.7, 0.3]
+            rows=3, cols=1,
+            subplot_titles=('Price & Moving Averages', 'RSI', 'Volume'),
+            vertical_spacing=0.08,
+            row_heights=[0.6, 0.2, 0.2]
         )
         
-        # 价格图表
+        # Candlestick chart
         fig.add_trace(
             go.Candlestick(
                 x=data.index,
                 open=data['Open'],
-                high=data['High'],
+                high=data['High'], 
                 low=data['Low'],
                 close=data['Close'],
                 name='Price',
@@ -351,321 +726,392 @@ class StockAnalyzer:
             row=1, col=1
         )
         
-        # 添加50日均线
-        ma50 = data['Close'].rolling(window=50).mean()
-        fig.add_trace(
-            go.Scatter(
-                x=data.index,
-                y=ma50,
-                name='MA 50',
-                line=dict(color='#3B82F6', width=2)
-            ),
-            row=1, col=1
-        )
+        # Moving averages
+        if len(data) >= 20:
+            sma_20 = data['Close'].rolling(20).mean()
+            fig.add_trace(
+                go.Scatter(x=data.index, y=sma_20, name='SMA 20',
+                          line=dict(color='#F59E0B', width=1)),
+                row=1, col=1
+            )
         
-        # 成交量图表
-        colors = ['#10B981' if close > open else '#EF4444' 
-                 for close, open in zip(data['Close'], data['Open'])]
+        if len(data) >= 50:
+            sma_50 = data['Close'].rolling(50).mean()
+            fig.add_trace(
+                go.Scatter(x=data.index, y=sma_50, name='SMA 50',
+                          line=dict(color='#EF4444', width=1)),
+                row=1, col=1
+            )
+        
+        # RSI
+        if len(data) >= 14:
+            delta = data['Close'].diff()
+            gain = delta.where(delta > 0, 0).rolling(14).mean()
+            loss = -delta.where(delta < 0, 0).rolling(14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            
+            fig.add_trace(
+                go.Scatter(x=data.index, y=rsi, name='RSI',
+                          line=dict(color='#8B5CF6', width=2)),
+                row=2, col=1
+            )
+            fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+            fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+        
+        # Volume
         fig.add_trace(
-            go.Bar(
-                x=data.index, 
-                y=data['Volume'], 
-                name='Volume', 
-                marker_color=colors, 
-                opacity=0.7
-            ),
-            row=2, col=1
+            go.Bar(x=data.index, y=data['Volume'], name='Volume',
+                   marker_color='#3B82F6', opacity=0.7),
+            row=3, col=1
         )
         
         fig.update_layout(
-            title=f"{symbol} Stock Analysis",
-            height=600,
+            title="Technical Analysis Chart",
+            height=700,
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=0, r=0, t=50, b=0),
-            hovermode="x unified",
             template="plotly_dark",
-            xaxis_rangeslider_visible=False
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Inter, sans-serif")
         )
-        
-        fig.update_xaxes(title_text="Date", row=2, col=1)
-        fig.update_yaxes(title_text="Price", row=1, col=1)
-        fig.update_yaxes(title_text="Volume", row=2, col=1)
         
         return fig
-    
-    def screen_stocks(self, criteria: Dict) -> Generator[Dict, None, None]:
-        """根据条件筛选股票"""
-        yield {"type": "status", "content": "🔍 Screening stocks based on your criteria..."}
-        time.sleep(0.5)
-        
-        # 获取股票池
-        stocks = self.stock_db.get_all_us_stocks()[:20]  # 演示用限制
-        
-        yield {"type": "status", "content": f"📊 Analyzing {len(stocks)} stocks..."}
-        time.sleep(0.3)
-        
-        results = []
-        for i, symbol in enumerate(stocks):
-            try:
-                _, info = self.get_stock_data(symbol)
-                
-                if info:
-                    pe = info.get('trailingPE', 1000)
-                    
-                    # 检查条件
-                    if 'pe_max' in criteria and pe > criteria['pe_max']:
-                        continue
-                    
-                    # 获取当前价格
-                    ticker = yf.Ticker(symbol)
-                    current_data = ticker.history(period="1d")
-                    price = current_data['Close'].iloc[-1] if not current_data.empty else 'N/A'
-                        
-                    results.append({
-                        'Symbol': symbol,
-                        'Price': price,
-                        'PE Ratio': pe,
-                        'Market Cap': f"${info.get('marketCap', 0)/1e9:.1f}B" if info.get('marketCap') else 'N/A'
-                    })
-            except:
-                continue
-        
-        if results:
-            # 按PE排序
-            results.sort(key=lambda x: x.get('PE Ratio', 999))
-            
-            yield {
-                "type": "screening",
-                "content": {
-                    'results': results[:10],  # 显示前10个结果
-                    'criteria': criteria
-                }
-            }
-        else:
-            yield {"type": "error", "content": "❌ No stocks found matching your criteria"}
-    
-    def compare_stocks(self, symbols: List[str]) -> Generator[Dict, None, None]:
-        """比较多只股票"""
-        yield {"type": "status", "content": f"⚖️ Comparing {len(symbols)} stocks: {', '.join(symbols)}"}
-        time.sleep(0.5)
-        
-        results = []
-        for symbol in symbols:
-            try:
-                data, info = self.get_stock_data(symbol)
-                
-                if data is not None and not data.empty:
-                    price = data['Close'].iloc[-1]
-                    ytd_change = ((data['Close'].iloc[-1] - data['Close'].iloc[0]) / data['Close'].iloc[0] * 100) if len(data) > 0 else 0
-                    results.append({
-                        'Symbol': symbol,
-                        'Current Price': price,
-                        'YTD Change (%)': f"{ytd_change:.2f}%",
-                        'PE Ratio': info.get('trailingPE', 'N/A')
-                    })
-            except:
-                continue
-        
-        if results:
-            yield {
-                "type": "comparison",
-                "content": {
-                    'results': results,
-                    'symbols': symbols
-                }
-            }
-        else:
-            yield {"type": "error", "content": "❌ Could not compare the provided stocks"}
-    
-    def check_all_stocks(self, params: Dict) -> Generator[Dict, None, None]:
-        """查找匹配模式的股票"""
-        prefix = params.get('prefix', '')
-        yield {"type": "status", "content": f"🔍 Finding all stocks starting with '{prefix}'..."}
-        time.sleep(0.5)
-        
-        # 获取股票池
-        all_stocks = self.stock_db.get_all_us_stocks()
-        matching = [s for s in all_stocks if s.startswith(prefix)][:10]  # 限制10个
-        
-        if not matching:
-            yield {"type": "error", "content": f"❌ No stocks found starting with '{prefix}'"}
-            return
-        
-        yield {"type": "status", "content": f"📊 Found {len(matching)} matching stocks. Analyzing..."}
-        time.sleep(0.3)
-        
-        results = []
-        for symbol in matching:
-            try:
-                ticker = yf.Ticker(symbol)
-                data = ticker.history(period="1d")
-                info = ticker.info
-                
-                if not data.empty:
-                    results.append({
-                        'Symbol': symbol,
-                        'Name': info.get('shortName', symbol)[:25],
-                        'Price': data['Close'].iloc[-1],
-                        'Volume': f"{data['Volume'].iloc[-1]/1e6:.1f}M"
-                    })
-            except:
-                continue
-        
-        if results:
-            yield {
-                "type": "check_all",
-                "content": {
-                    'results': results,
-                    'prefix': prefix
-                }
-            }
-        else:
-            yield {"type": "error", "content": f"❌ Could not analyze stocks starting with '{prefix}'"}
 
-# 主要Streamlit界面
-def main():
-    # 初始化会话状态 - 解决状态管理冲突
-    if 'terminal_state' not in st.session_state:
-        st.session_state.terminal_state = {
-            'messages': [],
-            'last_input': "",
-            'processing': False
-        }
+# Theme selector in sidebar
+with st.sidebar:
+    st.markdown("### 🎨 Theme")
+    theme = st.selectbox("Select Theme", ["dark", "minimal", "terminal"], index=0)
     
-    # 设置页面配置
-    st.set_page_config(
-        page_title="Stock Terminal Pro", 
-        layout="wide",
-        initial_sidebar_state="collapsed"
+    st.markdown("### 📊 Market Status")
+    st.markdown("""
+    <div class="metric-card">
+        <div class="metric-value">🟢 OPEN</div>
+        <div class="metric-label">US Markets</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Apply selected theme
+st.markdown(get_theme_css(theme), unsafe_allow_html=True)
+
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "analyzer" not in st.session_state:
+    st.session_state.analyzer = StreamingAnalyzer()
+
+# Professional Header
+st.markdown("""
+<div class="terminal-header">
+    <div class="terminal-title">📈 US Stock Terminal Pro</div>
+    <div class="terminal-subtitle">Professional Real-time Market Analysis & Trading Intelligence</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Status Bar
+st.markdown("""
+<div class="status-bar">
+    <div class="status-item">🟢 SYSTEM ONLINE</div>
+    <div class="status-item">🇺🇸 NYSE • NASDAQ</div>
+    <div class="status-item">🤖 AI ENGINE ACTIVE</div>
+    <div class="status-item">📡 REAL-TIME DATA</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Quick Actions (if no messages)
+if not st.session_state.messages:
+    st.markdown("### ⚡ Quick Analysis")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if st.button("📊 Analyze AAPL", key="q1"):
+            st.session_state.messages.append({"role": "user", "content": "AAPL"})
+            st.rerun()
+    
+    with col2:
+        if st.button("⚖️ Compare NVDA vs AAPL", key="q2"):
+            st.session_state.messages.append({"role": "user", "content": "compare NVDA and AAPL"})
+            st.rerun()
+    
+    with col3:
+        if st.button("⚡ Analyze TSLA", key="q3"):
+            st.session_state.messages.append({"role": "user", "content": "TSLA"})
+            st.rerun()
+    
+    with col4:
+        if st.button("💎 Check MSFT", key="q4"):
+            st.session_state.messages.append({"role": "user", "content": "check MSFT"})
+            st.rerun()
+
+# Display chat history
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.markdown(f"""
+        <div class="user-message">
+            <strong>👤 TRADER:</strong> {message["content"]}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="ai-message">
+            <strong>🤖 TERMINAL:</strong>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Display message content
+        if "content" in message:
+            st.markdown(message["content"])
+        
+        # Display chart if present
+        if "chart" in message:
+            st.plotly_chart(message["chart"], use_container_width=True, config={'displayModeBar': False})
+        
+        # Display tables if present
+        if "technical_table" in message:
+            st.markdown("#### 📊 Technical Indicators")
+            st.dataframe(message["technical_table"], use_container_width=True, hide_index=True)
+        
+        if "fundamental_table" in message:
+            st.markdown("#### 💰 Fundamental Metrics")
+            st.dataframe(message["fundamental_table"], use_container_width=True, hide_index=True)
+            
+        if "comparison_table" in message:
+            st.markdown("#### ⚖️ Comparison Results")
+            st.dataframe(message["comparison_table"], use_container_width=True, hide_index=True)
+
+# Input section
+st.markdown("### 💬 Terminal Input")
+
+col1, col2, col3 = st.columns([6, 1, 1])
+
+with col1:
+    user_input = st.text_input(
+        "Command",
+        placeholder="Enter commands like: AAPL, GOOGL, compare NVDA and TSLA, check MSFT...",
+        key="terminal_input",
+        label_visibility="collapsed"
     )
-    st.markdown(get_theme_css(), unsafe_allow_html=True)
-    
-    # 界面头部
-    st.markdown("""
-    <div class="terminal-header">
-        <h1>📈 Stock Analysis Terminal Pro</h1>
-        <p>Professional Real-time Market Analysis • Stock Screening • Portfolio Comparison</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 状态栏
-    st.markdown("""
-    <div class="status-bar">
-        <div>🟢 SYSTEM ONLINE</div>
-        <div>📡 REAL-TIME DATA</div>
-        <div>🤖 AI ANALYSIS</div>
-        <div>🚀 v1.2.1</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 显示消息历史
-    for i, msg in enumerate(st.session_state.terminal_state['messages']):
-        if msg["role"] == "trader":
-            st.markdown(f'<div class="user-message"><b>TRADER:</b> {msg["content"]}</div>', unsafe_allow_html=True)
-        else:
-            # 根据消息类型设置样式
-            if msg.get("is_error", False):
-                st.markdown(f'<div class="error-message"><b>TERMINAL:</b> {msg["content"]}</div>', unsafe_allow_html=True)
-            elif msg.get("is_status", False):
-                st.markdown(f'<div class="status-message"><b>SYSTEM:</b> {msg["content"]}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="ai-message"><b>TERMINAL:</b> {msg["content"]}</div>', unsafe_allow_html=True)
-            
-            # 显示图表
-            if "chart" in msg:
-                chart_id = hashlib.md5(f"{msg['content']}_{i}".encode()).hexdigest()
-                st.plotly_chart(msg["chart"], use_container_width=True, key=f"chart_{chart_id}")
-            
-            # 显示分析报告
-            if "analysis_report" in msg:
-                st.markdown(msg["analysis_report"], unsafe_allow_html=True)
-            
-            # 显示表格结果
-            if "results" in msg:
-                df = pd.DataFrame(msg["results"])
-                if not df.empty:
-                    # 格式化数字列
-                    if 'Price' in df.columns:
-                        df['Price'] = df['Price'].apply(lambda x: f"${x:,.2f}" if isinstance(x, (int, float)) else x)
-                    st.dataframe(df)
-    
-    # 输入区域 - 解决状态管理问题
-    with st.form(key='command_form'):
-        user_input = st.text_input(
-            "📋 Enter command (e.g., ANALYZE NVDA, screen PE<20, compare AAPL MSFT, TECH*)", 
-            key="command_input",
-            placeholder="Enter stock symbol or command...",
-            value=st.session_state.terminal_state.get('last_input', ''),
-            label_visibility="collapsed"
-        )
-        
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            submit_button = st.form_submit_button("🚀 EXECUTE")
-        with col2:
-            clear_button = st.form_submit_button("🗑️ CLEAR")
-    
-    # 表单提交处理
-    if clear_button:
-        st.session_state.terminal_state['messages'] = []
-        st.session_state.terminal_state['last_input'] = ""
-        st.session_state.terminal_state['processing'] = False
-        st.experimental_rerun()
-    
-    if submit_button and user_input.strip() and not st.session_state.terminal_state.get('processing', False):
-        # 更新状态
-        st.session_state.terminal_state['last_input'] = user_input
-        st.session_state.terminal_state['processing'] = True
-        
-        # 添加用户消息
-        st.session_state.terminal_state['messages'].append({
-            "role": "trader", 
-            "content": user_input
-        })
-        
-        # 初始化分析器
-        analyzer = StockAnalyzer()
-        
-        # 处理命令
-        for response in analyzer.process_command(user_input):
-            if response["type"] == "status":
-                st.session_state.terminal_state['messages'].append({
-                    "role": "assistant",
-                    "is_status": True,
-                    "content": response["content"]
-                })
-                st.experimental_rerun()
-            elif response["type"] in ["analysis", "screening", "comparison", "check_all", "multiple_analysis"]:
-                # 确保所有响应中都有安全的内容
-                safe_response = {
-                    "role": "assistant",
-                    "content": f"{response['type']} completed"
-                }
-                
-                # 安全添加所有键值对
-                for key in response.get("content", {}):
-                    safe_response[key] = response["content"][key]
-                
-                # 确保分析报告键存在
-                if response["type"] == "analysis" and "analysis_report" not in safe_response:
-                    safe_response["analysis_report"] = "<div class='ai-message'>Basic analysis report generated</div>"
-                
-                st.session_state.terminal_state['messages'].append(safe_response)
-                st.session_state.terminal_state['processing'] = False
-                st.experimental_rerun()
-            elif response["type"] == "error":
-                st.session_state.terminal_state['messages'].append({
-                    "role": "assistant",
-                    "is_error": True,
-                    "content": response["content"]
-                })
-                st.session_state.terminal_state['processing'] = False
-                st.experimental_rerun()
-        
-        # 处理完成后重置状态
-        st.session_state.terminal_state['processing'] = False
-        st.experimental_rerun()
 
-if __name__ == "__main__":
-    main()
+with col2:
+    execute_btn = st.button("🚀 EXECUTE", type="primary", use_container_width=True)
+
+with col3:
+    if st.session_state.messages:
+        clear_btn = st.button("🗑️ CLEAR", use_container_width=True)
+        if clear_btn:
+            st.session_state.messages = []
+            st.rerun()
+
+# Process input with streaming
+if execute_btn and user_input.strip():
+    # Parse command to extract symbols and action
+    parsed_command = st.session_state.analyzer.parser.parse_command(user_input.strip())
+    
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": user_input.strip()})
+    
+    # Create streaming container
+    streaming_container = st.empty()
+    result_content = ""
+    chart_data = None
+    technical_table = None
+    fundamental_table = None
+    comparison_table = None
+    
+    # Stream the analysis
+    for update in st.session_state.analyzer.process_command(user_input.strip()):
+        if update["type"] == "status":
+            streaming_container.markdown(f"""
+            <div class="streaming-message">
+                <strong>🤖 TERMINAL:</strong><br/>
+                {update["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+            
+        elif update["type"] == "info":
+            info = update["content"]
+            price_color = "#10B981" if info["change"] > 0 else "#EF4444"
+            result_content += f"""
+## 📈 {info["symbol"]} - {info["name"]}
+
+**Sector:** {info["sector"]} | **Price:** ${info["price"]:.2f} | **Change:** <span style="color: {price_color}">{info["change"]:+.2f}%</span>
+
+"""
+            
+        elif update["type"] == "technical":
+            tech = update["content"]
+            result_content += """
+### 🔬 Technical Analysis
+
+"""
+            # Create technical indicators table
+            tech_data = []
+            if tech.get('rsi'): tech_data.append(["RSI (14)", f"{tech['rsi']:.1f}"])
+            if tech.get('sma_20'): tech_data.append(["SMA 20", f"${tech['sma_20']:.2f}"])
+            if tech.get('sma_50'): tech_data.append(["SMA 50", f"${tech['sma_50']:.2f}"])
+            if tech.get('macd'): tech_data.append(["MACD", f"{tech['macd']:.4f}"])
+            if tech.get('volume_ratio'): tech_data.append(["Volume Ratio", f"{tech['volume_ratio']:.2f}x"])
+            
+            if tech_data:
+                technical_table = pd.DataFrame(tech_data, columns=["Indicator", "Value"])
+            
+        elif update["type"] == "fundamental":
+            fund = update["content"]
+            result_content += """
+### 💰 Fundamental Analysis
+
+"""
+            # Create fundamental table
+            fund_data = []
+            if fund.get('pe_ratio'): fund_data.append(["P/E Ratio", f"{fund['pe_ratio']:.2f}"])
+            if fund.get('pb_ratio'): fund_data.append(["P/B Ratio", f"{fund['pb_ratio']:.2f}"])
+            if fund.get('roe'): fund_data.append(["ROE", f"{fund['roe']*100:.1f}%"])
+            if fund.get('debt_to_equity'): fund_data.append(["Debt/Equity", f"{fund['debt_to_equity']:.2f}"])
+            if fund.get('dividend_yield'): fund_data.append(["Dividend Yield", f"{fund['dividend_yield']*100:.2f}%"])
+            if fund.get('market_cap'): fund_data.append(["Market Cap", f"${fund['market_cap']/1e9:.1f}B"])
+            
+            if fund_data:
+                fundamental_table = pd.DataFrame(fund_data, columns=["Metric", "Value"])
+            
+        elif update["type"] == "insights":
+            insights = update["content"]
+            result_content += f"""
+### 🎯 AI Insights
+
+**Recommendation:** {insights["recommendation"]} | **Confidence:** {insights["confidence"]:.1%} | **Risk Level:** {insights["risk_level"]}
+
+"""
+            if insights.get("target_price"):
+                result_content += f"**Target Price:** ${insights['target_price']:.2f}\n\n"
+            
+            # Add signals
+            if insights.get("signals"):
+                result_content += "**Key Signals:**\n"
+                for signal in insights["signals"]:
+                    emoji = "🟢" if signal["type"] == "bullish" else "🔴"
+                    result_content += f"- {emoji} {signal['message']}\n"
+                result_content += "\n"
+        
+        elif update["type"] == "comparison":
+            comp = update["content"]
+            symbols = comp["symbols"]
+            analyses = comp["analyses"]
+            
+            result_content = f"""
+## ⚖️ Comparison Analysis: {symbols[0]} vs {symbols[1]}
+
+### 📊 Overview
+"""
+            
+            # Add basic comparison info
+            for symbol in symbols:
+                if symbol in analyses:
+                    analysis = analyses[symbol]
+                    price_color = "#10B981" if analysis['change'] > 0 else "#EF4444"
+                    result_content += f"""
+**{symbol}** - {analysis["info"].get("longName", symbol)[:40]}
+- Price: ${analysis['price']:.2f} (<span style="color: {price_color}">{analysis['change']:+.2f}%</span>)
+- Sector: {analysis["info"].get("sector", "Unknown")}
+
+"""
+            
+            # Create comparison table
+            comp_data = []
+            for symbol in symbols:
+                if symbol in analyses:
+                    analysis = analyses[symbol]
+                    comp_data.append({
+                        "Symbol": symbol,
+                        "Company": analysis["info"].get("longName", symbol)[:25] + "..." if len(analysis["info"].get("longName", symbol)) > 25 else analysis["info"].get("longName", symbol),
+                        "Price": f"${analysis['price']:.2f}",
+                        "Change %": f"{analysis['change']:+.2f}%",
+                        "P/E Ratio": f"{analysis['fundamental'].get('pe_ratio', 0):.1f}" if analysis['fundamental'].get('pe_ratio') else 'N/A',
+                        "Market Cap": f"${(analysis['fundamental'].get('market_cap', 0) or 0)/1e9:.1f}B" if analysis['fundamental'].get('market_cap') else 'N/A',
+                        "RSI": f"{analysis['technical'].get('rsi', 0):.1f}" if analysis['technical'].get('rsi') else 'N/A',
+                        "ROE": f"{(analysis['fundamental'].get('roe', 0) or 0)*100:.1f}%" if analysis['fundamental'].get('roe') else 'N/A'
+                    })
+            
+            if comp_data:
+                comparison_table = pd.DataFrame(comp_data)
+                
+            # Add simple comparison insights
+            if len(comp_data) == 2:
+                stock1, stock2 = comp_data[0], comp_data[1]
+                result_content += f"""
+### 🎯 Quick Comparison
+"""
+                
+                # Price comparison
+                price1 = float(stock1["Price"].replace("$", ""))
+                price2 = float(stock2["Price"].replace("$", ""))
+                if price1 > price2:
+                    result_content += f"- **Higher Price**: {stock1['Symbol']} (${price1:.2f}) vs {stock2['Symbol']} (${price2:.2f})\n"
+                else:
+                    result_content += f"- **Higher Price**: {stock2['Symbol']} (${price2:.2f}) vs {stock1['Symbol']} (${price1:.2f})\n"
+                
+                # Market cap comparison
+                if stock1["Market Cap"] != 'N/A' and stock2["Market Cap"] != 'N/A':
+                    cap1 = float(stock1["Market Cap"].replace("$", "").replace("B", ""))
+                    cap2 = float(stock2["Market Cap"].replace("$", "").replace("B", ""))
+                    larger_cap = stock1['Symbol'] if cap1 > cap2 else stock2['Symbol']
+                    result_content += f"- **Larger Market Cap**: {larger_cap}\n"
+                
+                # P/E comparison
+                if stock1["P/E Ratio"] != 'N/A' and stock2["P/E Ratio"] != 'N/A':
+                    pe1 = float(stock1["P/E Ratio"])
+                    pe2 = float(stock2["P/E Ratio"])
+                    lower_pe = stock1['Symbol'] if pe1 < pe2 else stock2['Symbol']
+                    result_content += f"- **Lower P/E (Better Value)**: {lower_pe}\n"
+            
+        elif update["type"] == "chart":
+            chart_data = update["content"]
+            
+        elif update["type"] == "complete":
+            # Final update - clear streaming container and add final message
+            streaming_container.empty()
+            
+            final_message = {
+                "role": "assistant",
+                "content": result_content
+            }
+            
+            if chart_data:
+                final_message["chart"] = chart_data
+            if technical_table is not None:
+                final_message["technical_table"] = technical_table
+            if fundamental_table is not None:
+                final_message["fundamental_table"] = fundamental_table
+            if comparison_table is not None:
+                final_message["comparison_table"] = comparison_table
+            
+            st.session_state.messages.append(final_message)
+            st.rerun()
+            
+        elif update["type"] == "error":
+            streaming_container.markdown(f"""
+            <div class="ai-message">
+                <strong>🤖 TERMINAL:</strong><br/>
+                {update["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": update["content"]
+            })
+            time.sleep(2)
+            st.rerun()
+
+# Professional Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: var(--text-secondary); padding: 2rem; font-family: "Inter", sans-serif;'>
+    <p><strong>📈 US Stock Terminal Pro v1.0</strong></p>
+    <p>Real-time Market Analysis • Professional Trading Intelligence • AI-Powered Insights</p>
+    <p style="font-size: 0.75rem; margin-top: 1rem;">
+        ⚠️ For educational and research purposes only. Not financial advice.
+    </p>
+</div>
+""", unsafe_allow_html=True)
