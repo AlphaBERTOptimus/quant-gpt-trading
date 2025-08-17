@@ -84,6 +84,14 @@ if criteria_type == 'custom':
             return market_cap and market_cap < 2e9  # < $2B
         
         return True  # 'all' type
+            market_cap = stock_data.get('market_cap')
+            return market_cap and market_cap > 10e9  # > $10B
+            
+        elif criteria_type == 'small_cap':
+            market_cap = stock_data.get('market_cap')
+            return market_cap and market_cap < 2e9  # < $2B
+        
+        return True  # 'all' type
     
     def _sort_screening_results(self, results: List[Dict], criteria: Dict) -> List[Dict]:
         """Sort screening results based on criteria"""
