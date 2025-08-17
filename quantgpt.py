@@ -1,4 +1,25 @@
-elif update["type"] == "insights":
+if tech_data:
+                technical_table = pd.DataFrame(tech_data, columns=["Indicator", "Value"])
+            
+        elif update["type"] == "fundamental":
+            fund = update["content"]
+            result_content += """
+### 💰 Fundamental Analysis
+
+"""
+            # Create fundamental table
+            fund_data = []
+            if fund.get('pe_ratio'): fund_data.append(["P/E Ratio", f"{fund['pe_ratio']:.2f}"])
+            if fund.get('pb_ratio'): fund_data.append(["P/B Ratio", f"{fund['pb_ratio']:.2f}"])
+            if fund.get('roe'): fund_data.append(["ROE", f"{fund['roe']*100:.1f}%"])
+            if fund.get('debt_to_equity'): fund_data.append(["Debt/Equity", f"{fund['debt_to_equity']:.2f}"])
+            if fund.get('dividend_yield'): fund_data.append(["Dividend Yield", f"{fund['dividend_yield']*100:.2f}%"])
+            if fund.get('market_cap'): fund_data.append(["Market Cap", f"${fund['market_cap']/1e9:.1f}B"])
+            
+            if fund_data:
+                fundamental_table = pd.DataFrame(fund_data, columns=["Metric", "Value"])
+            
+        elif update["type"] == "insights":
             insights = update["content"]
             result_content += f"""
 ### 🎯 AI Insights
