@@ -24,7 +24,7 @@ def get_theme_css():
     }
     .stApp { background: var(--bg-primary); color: var(--text-primary); }
     .terminal-header { background: linear-gradient(135deg, var(--bg-secondary) 0%, #334155 100%); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; }
-    .status-bar { display: flex; gap: 1rem; background: var(--bg-secondary); padding: 0.5rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.8rem; }
+    .status极bar { display: flex; gap: 1rem; background: var(--bg-secondary); padding: 0.5rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.8rem; }
     .user-message { background: var(--bg-secondary); padding: 1rem; margin: 0.5rem 0; border-radius: 6px; border-left: 3px solid var(--accent-color); }
     .ai-message { background: var(--bg-secondary); padding: 1rem; margin: 0.5rem 0; border-radius: 6px; border-left: 3px solid var(--success-color); }
     
@@ -130,7 +130,7 @@ class StockAnalyzer:
                     'change': change,
                     'pe': pe,
                     'market_cap': market_cap,
-                    'rsi': rsi,
+                    'r极si': rsi,
                     'chart': fig
                 }
             }
@@ -360,9 +360,6 @@ def main():
         st.session_state.messages = []
     if "analyzer" not in st.session_state:
         st.session_state.analyzer = StockAnalyzer()
-    # 初始化输入状态
-    if "input" not in st.session_state:
-        st.session_state.input = ""
     
     # 界面头部
     st.markdown("""
@@ -407,88 +404,74 @@ def main():
         with col2:
             if st.form_submit_button("🗑️ Clear"):
                 st.session_state.messages = []
-                st.session_state.input = ""
-                st.experimental_rerun()
+                st.rerun()
     
-    # 处理表单提交 - 避免重复处理相同命令
-    if (submit_button or user_input) and user_input.strip():
-        # 检查是否重复命令
-        last_command = st.session_state.get("last_command", "")
-        if user_input != last_command:
-            st.session_state.last_command = user_input
-            # 添加用户消息
+    # 处理表单提交
+    if submit_button or user_input:
+        if user_input.strip():
+            # 添加用户消息 - 修改为TRADER
             st.session_state.messages.append({"role": "trader", "content": user_input})
             process_command(user_input)
-        else:
-            st.session_state.last_command = ""
 
 def process_command(command: str):
     """Process user command and display results"""
     analyzer = st.session_state.analyzer
     container = st.empty()
     
+    # 收集所有响应
+    responses = []
     for response in analyzer.process_command(command):
+        responses.append(response)
         if response["type"] == "status":
             container.markdown(f'<div class="ai-message">{response["content"]}</div>', unsafe_allow_html=True)
-        elif response["type"] == "analysis":
-            data = response["content"]
+    
+    # 处理最终响应
+    if responses:
+        final_response = responses[-1]
+        if final_response["type"] == "analysis":
+            data = final_response["content"]
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": f"Analysis for {data['symbol']}: Price ${data['price']:.2f}, Change {data['change']:.2f}%, PE {data['pe']}, RSI {data['rsi']:.1f}",
                 "chart": data["chart"]
             })
-            # 清除输入并刷新
-            st.session_state.input = ""
-            st.experimental_rerun()
-        elif response["type"] == "screening":
-            results = response["content"]["results"]
+        elif final_response["type"] == "screening":
+            results = final_response["content"]["results"]
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": f"Found {len(results)} stocks matching criteria",
                 "results": results
             })
-            # 清除输入并刷新
-            st.session_state.input = ""
-            st.experimental_rerun()
-        elif response["type"] == "comparison":
-            results = response["content"]["results"]
+        elif final_response["type"] == "comparison":
+            results = final_response["content"]["results"]
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": f"Comparison of {len(results)} stocks",
                 "results": results
             })
-            # 清除输入并刷新
-            st.session_state.input = ""
-            st.experimental_rerun()
-        elif response["type"] == "check_all":
-            results = response["content"]["results"]
+        elif final_response["type"] == "check_all":
+            results = final_response["content"]["results"]
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": f"Found {len(results)} stocks starting with {response['content']['prefix']}",
+                "content": f"Found {len(results)} stocks starting with {final_response['content']['prefix']}",
                 "results": results
             })
-            # 清除输入并刷新
-            st.session_state.input = ""
-            st.experimental_rerun()
-        elif response["type"] == "multiple_analysis":
-            results = response["content"]["results"]
+        elif final_response["type"] == "multiple_analysis":
+            results = final_response["content"]["results"]
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": f"Analysis of {len(results)} stocks",
                 "results": results
             })
-            # 清除输入并刷新
-            st.session_state.input = ""
-            st.experimental_rerun()
-        elif response["type"] == "error":
-            st.session_state.messages.append({"role": "assistant", "content": response["content"]})
-            # 清除输入并刷新
-            st.session_state.input = ""
-            st.experimental_rerun()
+        elif final_response["type"] == "error":
+            st.session_state.messages.append({"role": "assistant", "content": final_response["content"]})
     
-    # 在命令处理结束后确保清除输入
-    st.session_state.input = ""
-    st.experimental_rerun()
+    # 添加完成状态
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": "✅ Analysis completed"
+    })
+    st.rerun()
 
 if __name__ == "__main__":
     main()
